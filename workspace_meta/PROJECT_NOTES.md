@@ -69,6 +69,14 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-10-25 (MAC) — MEETING WITH ITAI + TAL'S DECISIONS. **NOTHING IS RUNNING.**
+- **Tal: XSEG is ON HOLD** ("does not deliver yet"; 20-bear result in the entry below). **No email to Itai needed for now** (the REMIND TAL items below are void).
+- **Itai (2026-10-25):**
+  1. Add VS Code usage to the Run:ai guide (how to work in the workspace from VS Code).
+  2. **NEW DIRECTION:** lift the 2D image to 3D with an existing image-to-3D model (TRELLIS 2 from Microsoft, or Pixal / similar), and keep our
+     rkd_spatial method with geodesic paths (i.e. the geodesic teacher computed on the lifted 3D shape instead of the 2D image). Not started.
+- Obsidian: `Meetings/2026-10-25 Itai.md` (+ link in DISC.md); XSEG note marked hold.
+
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
 - **Result** (soft-snap, 228-normalised, mean over bears, 1 seed; segment map SAM 1; 2 bears have one segment -> perseg only):
   | arm | mean (n=20 / 18) | paired vs twostage | better on |
