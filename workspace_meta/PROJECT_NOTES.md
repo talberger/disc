@@ -92,7 +92,12 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     Inputs for the demo: `~/Downloads/pixal3d_inputs/*_rgba.png` (horses 56069, 164135; bears 117682, 11234, 14974, 5459).
   - Needs: TRELLIS.2 env (torch 2 + CUDA 12, flash-attn or ATTN_BACKEND=sdpa, natten 0.21 compiled for the GPU arch, o_voxel, utils3d wheel, MoGe),
     ~18 GB VRAM (1536) or ~10-12 GB with --low_vram (1024). inference.py saves only a GLB: write a wrapper that saves mesh + camera_params + the
-    preprocess crop/scale. NOT for the Run:ai image (torch 1.12) -> separate env on a RunPod pod first.
+    preprocess crop/scale. NOT in the disc:v2 image (torch 1.12).
+  - **Decision (Tal, 10-25): Run:ai, a SEPARATE workspace only for the 2D->3D lift** (outputs files on the PVC; the disc:v2 workspace reads them
+    and trains, like SAM 3 / pix2gestalt in their own envs). Workspace **`tberger3-pixal3d`**, environment `pixal3d-env` = public image
+    `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel` (7.4 GB; command `sleep infinity`), PVC `tal-disc-data` at /workspace, 1 GPU, 8 CPU, 32G, large shm.
+    Created by Tal 10-25, nothing installed yet. **NEXT:** install TRELLIS.2 deps + Pixal3D into an env on the PVC (e.g. `/workspace/envs/pixal3d`,
+    repo `/workspace/pixal3d_repo`), run horse 56069, then write the wrapper (mesh + camera + preprocess transform + pixel->surface map).
 
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
 - **Result** (soft-snap, 228-normalised, mean over bears, 1 seed; segment map SAM 1; 2 bears have one segment -> perseg only):
