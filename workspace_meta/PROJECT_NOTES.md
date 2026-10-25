@@ -78,11 +78,12 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   | perseg | 33.1 | -2.39 (SE 2.32) | 15/20 |
   | nofeat | 33.1 | -2.57 (SE 2.49) | 12/18 |
   | Fonly | 32.9 | -2.74 (SE 2.89) | 12/18 |
+  | SHIC (its own eval, argmax) | 33.84 | | |
   **Feature term: Fonly - nofeat = -0.16 (SE 0.87), Fonly better on 8/18 -> nothing**, same as the pod-53 horse ablation, now on 18 bears.
   All three single-stage arms are ~1 SE better than twostage (not significant). twostage 35.5 = the pod value on this subset (ours#1 35.48) -> Run:ai reproduces.
   Big per-bear swings both ways (117682: twostage 18.1 vs 40-47; 14974: twostage 55.0 vs 23-27; 154547: twostage 10.2 vs 20-23).
 - Figure (4 picked bears: Fonly best vs twostage 14974, worst 117682, median 11234, largest |Fonly - nofeat| 5459), on the Mac:
-  `demo/shic/xseg_bears_runai_sub20/backproj_compare_bears.png` (+ `summary.txt/.json` there). Built by `scripts/make_xseg_bears_figs.sh` (`fd8b27d`).
+  `demo/shic/xseg_bears_runai_sub20/backproj_compare_bears.png` (+ `summary.txt/.json` there). Built by `scripts/make_xseg_bears_figs.sh` (`a2bdb9e`; SHIC panel added 10-25 -- SHIC code/weights + dinov2 hub cache fetched to the PVC, `demo/shic/run/` links recreated).
 - On the PVC: runs `data/densepose_lvis/runs_runai_sub20/` (two-stage + kept features/geo tables, ~1.5 GB/bear), `runs_xseg_bears_runai_sub20/`,
   `demo/shic/xseg_bears_runai_sub20/`, logs `/workspace/logs/xseg_bears*.log`, `/workspace/logs/xseg_bears_runai_sub20/`. NOT on the RunPod volume.
 - Timing: 167 min for everything (two-stage prep ~2.5 min/bear, the 3 arms ~7 min/bear).
