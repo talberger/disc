@@ -94,9 +94,10 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     ~18 GB VRAM (1536) or ~10-12 GB with --low_vram (1024). inference.py saves only a GLB: write a wrapper that saves mesh + camera_params + the
     preprocess crop/scale. NOT in the disc:v2 image (torch 1.12).
   - **Decision (Tal, 10-25): Run:ai, a SEPARATE workspace only for the 2D->3D lift** (outputs files on the PVC; the disc:v2 workspace reads them
-    and trains, like SAM 3 / pix2gestalt in their own envs). Workspace **`tberger3-pixal3d`**, environment `pixal3d-env` = public image
+    and trains, like SAM 3 / pix2gestalt in their own envs). Workspace **`pixal3d-env`** (Tal's name; the environment has the same name) = public image
     `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel` (7.4 GB; command `sleep infinity`), PVC `tal-disc-data` at /workspace, 1 GPU, 8 CPU, 32G, large shm.
-    Created by Tal 10-25, nothing installed yet. **NEXT:** install TRELLIS.2 deps + Pixal3D into an env on the PVC (e.g. `/workspace/envs/pixal3d`,
+    Created by Tal 10-25; first start OK (image pull ~4 min; got an RTX A5000 24 GB this time -- the GPU model varies; torch 2.6.0+cu124,
+    nvcc 12.4, /dev/shm 30G; PVC 62G used of 186G); stopped again by Claude. Nothing installed yet. **NEXT:** install TRELLIS.2 deps + Pixal3D into an env on the PVC (e.g. `/workspace/envs/pixal3d`,
     repo `/workspace/pixal3d_repo`), run horse 56069, then write the wrapper (mesh + camera + preprocess transform + pixel->surface map).
 
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
