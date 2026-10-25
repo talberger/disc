@@ -4,7 +4,7 @@ import argparse, json, os
 import numpy as np, torch
 from PIL import Image, ImageDraw, ImageFont
 
-ARMS = ['twostage', 'perseg', 'nofeat', 'Fonly']
+ARMS = ['SHIC', 'twostage', 'perseg', 'nofeat', 'Fonly']
 H, GAP, PAD = 300, 6, 40
 
 
@@ -36,11 +36,15 @@ def main():
     ap.add_argument('--runs_in'); ap.add_argument('--xdemo'); ap.add_argument('--summary', required=True)
     ap.add_argument('--ids', nargs='+'); ap.add_argument('--key'); ap.add_argument('--out')
     ap.add_argument('--print_pick', action='store_true', help='only print the picked bear ids and exit')
+    ap.add_argument('--shic_results', default=None, help="SHIC's own eval json (bbox.per_instance = its error per bear)")
     a = ap.parse_args()
     if a.print_pick:
         print(' '.join(pick(json.load(open(a.summary)))))
         return
     res = json.load(open(a.summary)); f, fs = font(16), font(13)
+    shic = json.load(open(a.shic_results))['bbox']['per_instance'] if a.shic_results and os.path.exists(a.shic_results) else {}
+    for i in res:
+        if i in shic: res[i]['SHIC'] = shic[i]
     rows = []
     for i in a.ids:
         tag = f'lvis{i}'; d = f'{a.runs_in}/{tag}'; o = f'{a.xdemo}/bear_{tag}/backproj'

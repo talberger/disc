@@ -11,7 +11,20 @@ NAME=${NAME:-runai_sub20}
 RUNS_IN=data/densepose_lvis/runs_$NAME; XRUNS=data/densepose_lvis/runs_xseg_bears_$NAME; XDEMO=demo/shic/xseg_bears_$NAME
 SUMMARY=$DISC_WS/logs/xseg_bears_$NAME/summary.json
 OBJ=./demo/shic/shapes/bear.obj; CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
-IDS=${IDS:-$(python analysis/make_xseg_bears_compare.py --summary $SUMMARY --print_pick)}
+IDS=${IDS:-$(# SHIC (argmax, its released bear weights; Tal 2026-10-25): its back-projection per bear, error from its own eval (eval_shic_bear/results.json)
+if [ "${SHIC:-1}" = 1 ]; then
+  for id in $IDS; do
+    tag=lvis$id; D=$RUNS_IN/$tag; O=$XDEMO/bear_$tag/backproj
+    [ -f $O/${tag}_SHIC_backproj.png ] && continue
+    mkdir -p $O/shic
+    python analysis/run_in_one_process.py \
+      analysis/shic_infer_correspondence.py --class_name bear --image_path $D/$tag.png --mask_path $D/${tag}_mask.pth --save_dir $O/shic --top_k 10 --- \
+      analysis/color_image_from_knn.py --mask_path $D/${tag}_mask.pth --knn_dir $O/shic --knn_path $O/shic/${tag}_shic_pixel_to_vertex_nn.pth \
+        --vertex_colors_path $CHK --source_image_path $D/$tag.png --k 1 --save_dir $O/shic --output_path $O/${tag}_SHIC_backproj.png --no_side_by_side \
+      >> $O/log.txt 2>&1 && echo "  $tag SHIC done" || echo "  $tag SHIC FAILED, see $O/log.txt"
+  done
+fi
+python analysis/make_xseg_bears_compare.py --shic_results data/densepose_lvis/eval_shic_bear/results.json --summary $SUMMARY --print_pick)}
 echo "bears: $IDS"
 for id in $IDS; do
   tag=lvis$id; D=$RUNS_IN/$tag; O=$XDEMO/bear_$tag/backproj; mkdir -p $O
