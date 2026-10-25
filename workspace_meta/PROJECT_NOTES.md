@@ -73,7 +73,9 @@ Goal (long-term): dense correspondence between an image and a 3D object.
 - **Tal: XSEG is ON HOLD** ("does not deliver yet"; 20-bear result in the entry below). **No email to Itai needed for now** (the REMIND TAL items below are void).
 - **Itai (2026-10-25):**
   1. Add VS Code usage to the Run:ai guide (how to work in the workspace from VS Code).
-  2. **NEW DIRECTION:** lift the 2D image to 3D with an existing image-to-3D model (TRELLIS 2 from Microsoft, or Pixal / similar), and keep our
+  2. **NEW DIRECTION:** lift the 2D image to 3D with an existing image-to-3D model: TRELLIS.2 (Microsoft, 4B, open, Dec 2025) or **Pixal3D** ("Pixel-Aligned 3D Generation from
+     Images", SIGGRAPH 2026, Tsinghua + TencentARC; HF `TencentARC/Pixal3D`; newer version on the TRELLIS.2 backbone, paper version on Direct3D-S2).
+     Pixel-aligned = each pixel has a direct 3D point, which is what the geodesic teacher needs, and keep our
      rkd_spatial method with geodesic paths (i.e. the geodesic teacher computed on the lifted 3D shape instead of the 2D image). Not started.
 - Obsidian: `Meetings/2026-10-25 Itai.md` (+ link in DISC.md); XSEG note marked hold.
 
