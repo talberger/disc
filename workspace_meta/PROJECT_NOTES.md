@@ -81,6 +81,8 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   | SHIC (its own eval, argmax) | 33.84 | | |
   **Feature term: Fonly - nofeat = -0.16 (SE 0.87), Fonly better on 8/18 -> nothing**, same as the pod-53 horse ablation, now on 18 bears.
   All three single-stage arms are ~1 SE better than twostage (not significant). twostage 35.5 = the pod value on this subset (ours#1 35.48) -> Run:ai reproduces.
+  **EXAMPLE TO KEEP (Tal, 2026-10-25): bear 117682 = why two-stage beats per-segment only** (twostage 18.1, SHIC 17.3 vs perseg/nofeat 40.6, Fonly 47.1;
+  4 segments, head split from the body). Row 2 of `demo/shic/xseg_bears_runai_sub20/backproj_compare_bears.png`.
   Big per-bear swings both ways (117682: twostage 18.1 vs 40-47; 14974: twostage 55.0 vs 23-27; 154547: twostage 10.2 vs 20-23).
 - Figure (4 picked bears: Fonly best vs twostage 14974, worst 117682, median 11234, largest |Fonly - nofeat| 5459), on the Mac:
   `demo/shic/xseg_bears_runai_sub20/backproj_compare_bears.png` (+ `summary.txt/.json` there). Built by `scripts/make_xseg_bears_figs.sh` (`a2bdb9e`; SHIC panel added 10-25 -- SHIC code/weights + dinov2 hub cache fetched to the PVC, `demo/shic/run/` links recreated).
