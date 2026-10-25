@@ -78,6 +78,21 @@ Goal (long-term): dense correspondence between an image and a 3D object.
      Pixel-aligned = each pixel has a direct 3D point, which is what the geodesic teacher needs, and keep our
      rkd_spatial method with geodesic paths (i.e. the geodesic teacher computed on the lifted 3D shape instead of the 2D image). Not started.
 - Obsidian: `Meetings/2026-10-25 Itai.md` (+ link in DISC.md); XSEG note marked hold.
+- **PIXAL3D DIRECTION, AGREED PIPELINE (Tal + Claude, 2026-10-25):** crop + our SAM 3 mask as ALPHA (RGBA; Pixal3D uses the alpha as the object
+  mask, else rembg picks the object itself) -> Pixal3D (repo github.com/TencentARC/Pixal3D, branch master = TRELLIS.2 backbone; cloned on the Mac
+  at `~/Projects/pixal3d_repo`) -> mesh in the input camera's frame (FOV from MoGe-2, fixed camera placement) -> rasterise it with that camera ->
+  every MASK PIXEL gets its surface point (not every vertex gets a pixel: the back side is unseen) -> the 2D geodesic table [2048 centres x mask px]
+  is replaced by GEODESICS ON THE LIFTED MESH between the pixels' surface points, normalised by that mesh's geodesic diameter -> the usual
+  rkd_spatial two-stage training, same segments, same 3D template side.
+  - Pixal3D's preprocess crops to the alpha bbox and rescales -> the wrapper must keep that transform to get back to our crop pixels.
+  - Ellipses (mu) should still be needed (Tal): they fix BOTH 2D foreshortening (gone with 3D geodesics) and instance-vs-template shape differences
+    (thick vs thin tail: stays). Comparing mu learned with the 2D vs the lifted-3D teacher separates the two.
+  - Occlusion: later. pix2gestalt already outputs amodal RGB content (we only used its mask) -> a candidate input for the lift.
+  - **HF demo check (Tal, 10-25): horse 56069 looks right** (head/ears/chest; the unseen hind part is simply not built). GLB extraction in the demo failed.
+    Inputs for the demo: `~/Downloads/pixal3d_inputs/*_rgba.png` (horses 56069, 164135; bears 117682, 11234, 14974, 5459).
+  - Needs: TRELLIS.2 env (torch 2 + CUDA 12, flash-attn or ATTN_BACKEND=sdpa, natten 0.21 compiled for the GPU arch, o_voxel, utils3d wheel, MoGe),
+    ~18 GB VRAM (1536) or ~10-12 GB with --low_vram (1024). inference.py saves only a GLB: write a wrapper that saves mesh + camera_params + the
+    preprocess crop/scale. NOT for the Run:ai image (torch 1.12) -> separate env on a RunPod pod first.
 
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
 - **Result** (soft-snap, 228-normalised, mean over bears, 1 seed; segment map SAM 1; 2 bears have one segment -> perseg only):
