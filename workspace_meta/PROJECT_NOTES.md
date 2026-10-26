@@ -126,9 +126,21 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     plain side view (6111). The 4 new bears' 2D two-stage re-run on Run:ai with kept intermediates: `data/densepose_lvis/runs_runai_crowd/`.
   - **First lifted results:** horse 56069: ZS 10.3 | 2D two-stage 39.3 | **lifted two-stage 15.9** (stage 1 16.9) | SHIC 6.9.
     Bear 117682 (control): ZS 42.9 | 2D 18.1 (stage 1 19.1) | lifted 22.9 (stage 1 19.9) | SHIC 17.3. 1 seed each.
-  - **NEXT:** decimate the mesh (~3 M verts is far too many for geodesics; ~50-100 k, remap pix_vertex), then the lifted geodesic table
-    [2048 centres x mask px] in the disc env (same format as `*_mask_geo_table_2d_seed0.pth`, diameter = the lifted mesh's), then the usual
-    two-stage run on 56069 vs the 2D-teacher two-stage (and vs ZS 10.3).
+  - **RESULT, 6 instances (1 seed; `scripts/make_lifted_figs.sh`, figure + summary on the Mac `demo/pixal3d/lifted_runs/`):**
+    | instance | SHIC | ZS | 2D stage 1 | 2D two-stage | lifted stage 1 | lifted two-stage |
+    |---|---|---|---|---|---|---|
+    | horse 56069 | 6.9 | 10.3 | - | 39.3 | 16.9 | **15.9** |
+    | bear 117682 (control) | 17.3 | 42.9 | 19.1 | 18.1 | 19.9 | 22.9 |
+    | bear 159218 | 14.3 | 44.8 | 49.2 | 41.4 | 17.2 | **21.8** |
+    | bear 212408 | 8.9 | 1.9 | 16.7 | 19.0 | 4.1 | **5.5** |
+    | bear 31383 | 11.4 | 19.8 | 32.0 | 31.0 | 28.0 | 30.1 |
+    | bear 154651 | 19.8 | 22.3 | 36.9 | 37.2 | 60.5 | 61.3 |
+    | MEAN | 13.1 | 23.7 | | 31.0 | 24.4 | 26.2 |
+    lifted - 2D: -4.76 (SE 7.26), better on 4/6. **The lifted teacher fixes the stage-1 collapse on the crowded cases (horse, 159218, 212408)**;
+    still behind SHIC on most. **154651 FAILS (37 -> 61):** the lower-left piece (leg in the water) comes out geodesically far from everything on
+    the lifted mesh (`lvis154651_lifted_vs_2d_rows.png`) -- a lift error on a partly hidden body. 31383: no change.
+  - **NEXT (Tal decides):** look into 154651; the 20-bear subset lifted vs 2D; if it holds: ONE workspace with both envs (Pixal3D venv + disc env)
+    to avoid the ~10 min workspace switches. Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md`.
 
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
 - **Result** (soft-snap, 228-normalised, mean over bears, 1 seed; segment map SAM 1; 2 bears have one segment -> perseg only):
