@@ -109,6 +109,10 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   - **FIRST LIFT, horse 56069 (A5000 24 GB): standard 1536 = CUDA OOM; `--low_vram` (1024) works**: 545 s to the mesh, 728 s with the GLB.
     Mesh 2.95 M vertices / 6.35 M faces; silhouette IoU vs our mask 0.978, 98% of mask pixels get a surface point; depth looks right (the nose is
     clearly in front of the chest = what the 2D geodesic got wrong). Files: PVC `/workspace/pixal3d_out/`; Mac `demo/pixal3d/horse_lvis56069/`.
+  - **SPEED (10-26):** of the ~9 min, ~7-8 min is LOADING the models from the PVC (low_vram), sampling is ~35 s, GLB ~3 min. lift.py now runs a
+    BATCH (models load once) and geometry only by default (texture + GLB opt-in; GLB written with PNG texture, MeshLab cannot read WebP).
+    Test (`/workspace/pixal3d_out/geom/`): load 432 s once, then horse 56069 40 s (mesh + check figure IDENTICAL to the full run) and bear 117682
+    87 s (1.84 M verts, IoU 0.975). 1024 is Pixal3D's lowest pipeline resolution; fewer --steps not tried yet.
   - **NEXT:** decimate the mesh (~3 M verts is far too many for geodesics; ~50-100 k, remap pix_vertex), then the lifted geodesic table
     [2048 centres x mask px] in the disc env (same format as `*_mask_geo_table_2d_seed0.pth`, diameter = the lifted mesh's), then the usual
     two-stage run on 56069 vs the 2D-teacher two-stage (and vs ZS 10.3).
