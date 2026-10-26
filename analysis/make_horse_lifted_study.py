@@ -9,8 +9,8 @@ import numpy as np, torch
 from PIL import Image, ImageDraw, ImageFont
 
 H, GAP, PAD = 320, 6, 46
-ROWS = [('SAM 1 map, lifted teacher', 'sam1', ['zs', 'sam1_lifted_stage1', 'sam1_lifted_stage2', 'sam1_lifted_perseg', 'sam1_lifted_hybrid']),
-        ('VLPart 5-seg map, lifted teacher', 'vlp', ['zs', 'vlp_lifted_stage1', 'vlp_lifted_stage2', 'vlp_lifted_perseg', 'vlp_lifted_hybrid']),
+ROWS = [   # Tal 2026-10-26: only the SAM 1 map and the VLPart partimagenet>=0.3 (4-seg) map (+ the 2D reference)
+('SAM 1 map, lifted teacher', 'sam1', ['zs', 'sam1_lifted_stage1', 'sam1_lifted_stage2', 'sam1_lifted_perseg', 'sam1_lifted_hybrid']),
         ('VLPart 4-seg map, lifted teacher', 'vlp4', ['zs', 'vlp4_lifted_stage1', 'vlp4_lifted_stage2', 'vlp4_lifted_perseg', 'vlp4_lifted_hybrid']),
         ('SAM 1 map, 2D teacher (before)', 'sam1', ['zs', 'sam1_2d_stage1', 'sam1_2d_stage2', 'sam1_2d_perseg', 'none'])]
 COLS = ['ZS', 'stage 1', 'stage 2 (two-stage)', 'per-seg only', 'hybrid (1 stage)']
