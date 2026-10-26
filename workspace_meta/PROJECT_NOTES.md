@@ -152,6 +152,19 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     **Geodesic PATHS, nose C (270,150) -> N1 body / N2 forehead / N3 chest** (`analysis/plot_lifted_geodesic_paths.py`,
     `demo/pixal3d/horse56069_study/geodesic_paths_nose.png`): /diameter 2D vs lifted: N1 0.184 -> 0.514, N2 0.424 -> 0.324, N3 0.301 -> 0.493 --
     the order flips (forehead now nearest); the lifted paths go back from the nose and down the neck.
+  - **HORSE 164135 (leg collision; `scripts/run_horse164135_lifted.sh`, Mac `demo/pixal3d/horse164135_study/`)**, lift IoU 0.949. Leg = seg 3 of the
+    OLD SAM 1 map (13 segs), correct = x-; VLPart 8-seg map with its own 2D/lifted table:
+    | arm | mean (pt 1/2/3) | leg x- / x+ / mixed |
+    |---|---|---|
+    | ZS | 13.3 (13/11/16) | 37 / 63 / 61 |
+    | 2D two-stage (09-28) | **6.4** (6/9/4) | 100 / 0 / 2 |
+    | lifted two-stage | 8.7 (6/11/9) | **100 / 0 / 0** |
+    | lifted per-seg | 9.8 (6/13/10) | 22 / 78 / 46 |
+    | lifted two-stage, VLPart 8 | 8.6 (8/9/9) | 0 / 100 / 1 |
+    | lifted per-seg, VLPart 8 | 8.5 (8/9/9) | 0 / 74 / 0 |
+    | SHIC | 7.4 | |
+    The lifted two-stage keeps the leg on the RIGHT side (like 2D) but the 3-point error is a bit higher; with VLPart 8 the leg goes wholly to the
+    WRONG leg (x+) without a bridge. Not a crowded-parts case, so the lifted teacher is not expected to help much here.
     Bug on the way: `$([ test ] && ...)` in an assignment under set -e exited silently (lost 25 min); fixed in `0aedf7e`.
   - **NEXT (Tal decides):** look into 154651; the 20-bear subset lifted vs 2D; if it holds: ONE workspace with both envs (Pixal3D venv + disc env)
     to avoid the ~10 min workspace switches. Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md`.
