@@ -99,7 +99,7 @@ def main():
     out.save(f'{a.study_dir}/backproj_study.png')
 
     # ellipses side by side
-    ells = sorted(glob.glob(f'{a.study_dir}/ellipses_*.png'))
+    ells = sorted(p for p in glob.glob(f'{a.study_dir}/ellipses_*.png') if not p.endswith('ellipses_study.png'))
     if ells:
         ims = [Image.open(p).convert('RGB') for p in ells]; hh = max(i.height for i in ims)
         ims = [i.resize((round(i.width * hh / i.height), hh)) for i in ims]
