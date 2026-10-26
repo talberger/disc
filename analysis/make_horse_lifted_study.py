@@ -95,7 +95,12 @@ def main():
     for i, r in enumerate(rows):
         x, y = 0, 34 + i * (H + PAD)
         for t, im in r:
-            out.paste(im, (x, y + PAD)); d.text((x + 4, y + 14), t, fill='black', font=f if len(t) < 34 else fs); x += im.width + GAP
+            out.paste(im, (x, y + PAD))
+            if d.textlength(t, font=f) > im.width - 6 and ', ' in t:   # wrap a long row title onto two lines (Tal, 2026-10-26)
+                l1, l2 = t.split(', ', 1); d.text((x + 4, y + 4), l1 + ',', fill='black', font=fs); d.text((x + 4, y + 22), l2, fill='black', font=fs)
+            else:
+                d.text((x + 4, y + 14), t, fill='black', font=f if d.textlength(t, font=f) <= im.width - 6 else fs)
+            x += im.width + GAP
     out.save(f'{a.study_dir}/backproj_study.png')
 
     # ellipses side by side
