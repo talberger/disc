@@ -1,6 +1,6 @@
 #!/bin/bash
 # Two-stage run on ONE instance with the LIFTED geodesic table (Pixal3D direction; Tal, 2026-10-26) + eval against the 2D-teacher two-stage.
-# The training is the current LVIS two-stage recipe exactly as scripts/run_lvis_worker.py runs it (global mu steps 1-149 with 8 in + 8 out,
+# The training is the current LVIS two-stage recipe exactly as scripts/run_lvis_worker.py runs it (= the L2-NORM trainer, which the worker patches in) (global mu steps 1-149 with 8 in + 8 out,
 # then per-segment aniso 16 + 0; mu lr 5e-2; cycle v2; LoRA-W all r4; alpha 0.5) -- ONLY --geo_table_2d_path / --geo_diag_2d change.
 # Inputs: SRC = the instance's kept-intermediates run dir (features, mask, segments, gt, 2D two-stage under encoder_loraW_all_r4_phase2/),
 #         LIFT = <tag>_lift.pth from external/pixal3d/lift.py.
@@ -29,7 +29,7 @@ else
   NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --mu_switch_step 150 --switch_nin 16 --switch_nout 0)
 fi
 echo "##### $TAG: $NSEG segments, lifted diameter $DIAG #####"
-[ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
+[ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
     --object_mask_path $SRC/${TAG}_mask.pth --fine_seg_path $SRC/${TAG}_fine_segments.pth \
     --pix_dino_features_path $SRC/${TAG}_pix_sdsquare_fuse16.pth \
     --width 2304 --n_classes 2304 --geodesic --temperature 0.01 --train_seed 0 --geo_diag_2d $DIAG \
