@@ -69,6 +69,24 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## STATE AT CLOSE — 2026-10-26 (MAC driving Run:ai `tberger3-disc-gpu2`) — LIFTED TEACHER ON 20 BEARS + 4 CROWDED: NO GAIN ON AVERAGE. **NOTHING IS RUNNING; gpu2 STOPPED.**
+- `scripts/run_lifted_bears.sh` (STEP=rgba|train|eval|figs) + `analysis/make_lifted_multi.py`; SAM 1 map; Pixal3D lifts for 19 new bears (`--low_vram`, geometry only).
+  Bad lifts (IoU < 0.45, split/occluded masks): 113202 0.44, 26883 0.18, 14974 0.40.
+- Output `data/densepose_lvis/lifted/multi/` (summary.txt/.json, backproj_{sub20_1..4,crowd_1}.png; `_small.jpg` copies on the Mac).
+- Soft-snap mean, 228-normalised, 1 seed:
+  | | SHIC | ZS | L stage1 | L stage2 | L per-seg | L hybrid | 2D stage1 | 2D stage2 | 2D per-seg |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 20 bears | 33.8 | 39.3 | 35.9 | 35.9 | 37.9 | 35.7 | 34.6 | 35.5 | **33.1** |
+  | 17 (bad lifts out) | 36.1 | 41.3 | 37.6 | 37.1 | 38.1 | 36.6 | 34.4 | 35.4 | 34.7 |
+  | 4 crowded | 13.6 | 22.2 | 27.4 | 29.7 | 27.2 | 32.3 | 33.7 | 32.1 | - |
+- Paired (20): L stage2-stage1 -0.05 (SE 0.8); L per-seg-stage2 +2.0 (2.1); L hybrid-stage2 -0.2 (1.8); lifted-2D: stage1 +1.3 (2.5),
+  stage2 +0.4 (2.2), per-seg +4.8 (2.7). 2D per-seg vs SHIC -0.8 (3.1), better on 12/20.
+- Answers to Tal's 4 questions: (1) stage 2 adds nothing over stage 1; per-seg alone is not better with the lifted teacher (it is best with the 2D one).
+  (2) hybrid ~ two-stage, no gain (crowded: worse than per-seg 4/4). (3) the lift helps only where the 2D teacher collapses (crowded parts);
+  on ordinary bears it is neutral-to-worse -> no general recipe yet; best overall = 2D per-seg. (4) visual: all our arms look alike per bear;
+  lifted arms are smoother on crowded bears (159218, 212408); nobody fixes the hard bears (184143, 181825, 38529, 5459 > 55).
+- Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (section "20 דובים").
+
 ## 2026-10-25 (MAC) — MEETING WITH ITAI + TAL'S DECISIONS. **NOTHING IS RUNNING.**
 - **Tal: XSEG is ON HOLD** ("does not deliver yet"; 20-bear result in the entry below). **No email to Itai needed for now** (the REMIND TAL items below are void).
 - **Itai (2026-10-25):**
