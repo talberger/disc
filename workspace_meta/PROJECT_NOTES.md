@@ -97,8 +97,21 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     and trains, like SAM 3 / pix2gestalt in their own envs). Workspace **`pixal3d-env`** (Tal's name; the environment has the same name) = public image
     `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel` (7.4 GB; command `sleep infinity`), PVC `tal-disc-data` at /workspace, 1 GPU, 8 CPU, 32G, large shm.
     Created by Tal 10-25; first start OK (image pull ~4 min; got an RTX A5000 24 GB this time -- the GPU model varies; torch 2.6.0+cu124,
-    nvcc 12.4, /dev/shm 30G; PVC 62G used of 186G); stopped again by Claude. Nothing installed yet. **NEXT:** install TRELLIS.2 deps + Pixal3D into an env on the PVC (e.g. `/workspace/envs/pixal3d`,
-    repo `/workspace/pixal3d_repo`), run horse 56069, then write the wrapper (mesh + camera + preprocess transform + pixel->surface map).
+    nvcc 12.4, /dev/shm 30G; PVC 62G used of 186G); stopped again by Claude.
+  - **INSTALLED 10-26** (`external/pixal3d/install_runai.sh`, ~32 min, resumable): venv `/workspace/envs/pixal3d` (--system-site-packages over the
+    image's torch 2.6), repos `/workspace/pixal3d_repo` + `/workspace/trellis2_repo`, all imports OK incl. flash-attn (prebuilt wheel), natten (built
+    for sm_86). Traps: the image has NO git (apt-get it each start; in /workspace/disc `git pull` fails -> fetch + merge --ff-only); Pixal3D's
+    trimesh==4.10.1 pin clashes with MoGe master (>=4.11) -> relaxed; the pipeline loads briaai/RMBG-2.0 (GATED HF repo) even with an alpha input
+    -> stubbed out in our wrapper (SAM 3 masks are instance-specific; RMBG/BiRefNet = salient foreground only; public BiRefNet = ZhengPeng7/BiRefNet).
+  - **Wrapper `external/pixal3d/lift.py`** (run in /workspace/pixal3d_repo with the venv): RGBA crop -> Pixal3D -> `<tag>_lift.pth` {vertices
+    (camera world frame), faces, pix_vertex [H,W] = front-most vertex per crop pixel (-1 none), pix_depth, camera, crop_box, iou, coverage}
+    + `<tag>.glb` + `<tag>_lift_check.png`. Decoded vertices need Pixal3D's R ([[1,0,0],[0,0,-1],[0,1,0]]) before its camera (IoU R 0.978 vs identity 0.734).
+  - **FIRST LIFT, horse 56069 (A5000 24 GB): standard 1536 = CUDA OOM; `--low_vram` (1024) works**: 545 s to the mesh, 728 s with the GLB.
+    Mesh 2.95 M vertices / 6.35 M faces; silhouette IoU vs our mask 0.978, 98% of mask pixels get a surface point; depth looks right (the nose is
+    clearly in front of the chest = what the 2D geodesic got wrong). Files: PVC `/workspace/pixal3d_out/`; Mac `demo/pixal3d/horse_lvis56069/`.
+  - **NEXT:** decimate the mesh (~3 M verts is far too many for geodesics; ~50-100 k, remap pix_vertex), then the lifted geodesic table
+    [2048 centres x mask px] in the disc env (same format as `*_mask_geo_table_2d_seed0.pth`, diameter = the lifted mesh's), then the usual
+    two-stage run on 56069 vs the 2D-teacher two-stage (and vs ZS 10.3).
 
 ## STATE AT CLOSE — 2026-10-24 (MAC session driving Run:ai `tberger3-disc-gpu2`, RTX A6000) — XSEG ON THE 20-BEAR SUBSET: ALL ARMS ~ EQUAL, THE FEATURE TERM ADDS NOTHING. **NOTHING IS RUNNING; workspace STOPPED.**
 - **Result** (soft-snap, 228-normalised, mean over bears, 1 seed; segment map SAM 1; 2 bears have one segment -> perseg only):
