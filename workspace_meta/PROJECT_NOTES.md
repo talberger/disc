@@ -113,6 +113,19 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     BATCH (models load once) and geometry only by default (texture + GLB opt-in; GLB written with PNG texture, MeshLab cannot read WebP).
     Test (`/workspace/pixal3d_out/geom/`): load 432 s once, then horse 56069 40 s (mesh + check figure IDENTICAL to the full run) and bear 117682
     87 s (1.84 M verts, IoU 0.975). 1024 is Pixal3D's lowest pipeline resolution; fewer --steps not tried yet.
+  - **LIFTED GEODESIC TABLE** (`analysis/build_lifted_geodesic_table.py`, `7827de3`): copies the instance's 2D table (same centres / mask /
+    pixel_to_node -> drop-in --geo_table_2d_path), replaces the distances: Pixal3D mesh -> quadric decimation to 200 k faces (~60-90 k verts)
+    -> largest component -> pixel = nearest decimated vertex to its front-most lifted vertex -> edge-graph Dijkstra; diameter = double sweep over
+    the mask-pixel vertices (feed as --geo_diag_2d). ~2.5 min per instance. Horse 56069 check: from the nose (GT pt 3) the 2D geodesic reaches
+    the chest at once; the lifted one climbs the face and the chest is FAR (`demo/pixal3d/lifted_table/lvis56069_lifted_vs_2d_rows.png`).
+  - **`scripts/run_lifted_instance.sh`** (`8267161`): lifted table + the worker's two-stage recipe (L2-NORM trainer -- the plain
+    train_relational_loss.py fails the phase-1 resume gate) + eval arms zs / 2d_final / 2d_stage1 / lifted_stage1 / lifted_final, + SHIC (its eval json).
+  - **CROWDED-PARTS TEST SET (chosen by Claude while Tal was away, 10-26; from the photos of the bears whose STAGE 1 hurts most vs ZS in the
+    full 132-bear run):** horse 56069; bears 159218 (known), 212408 (ZS 1.9 -> stage 1 17.0), 31383 (19.8 -> 32.0), 154651 (22.3 -> 36.3);
+    control 117682 (2D two-stage good there). Left out: 2 bears in the photo (74432, 229936), occlusion (14150, 14974), odd toy (159486),
+    plain side view (6111). The 4 new bears' 2D two-stage re-run on Run:ai with kept intermediates: `data/densepose_lvis/runs_runai_crowd/`.
+  - **First lifted results:** horse 56069: ZS 10.3 | 2D two-stage 39.3 | **lifted two-stage 15.9** (stage 1 16.9) | SHIC 6.9.
+    Bear 117682 (control): ZS 42.9 | 2D 18.1 (stage 1 19.1) | lifted 22.9 (stage 1 19.9) | SHIC 17.3. 1 seed each.
   - **NEXT:** decimate the mesh (~3 M verts is far too many for geodesics; ~50-100 k, remap pix_vertex), then the lifted geodesic table
     [2048 centres x mask px] in the disc env (same format as `*_mask_geo_table_2d_seed0.pth`, diameter = the lifted mesh's), then the usual
     two-stage run on 56069 vs the 2D-teacher two-stage (and vs ZS 10.3).
