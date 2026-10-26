@@ -8,6 +8,9 @@
 # Resumable: each step leaves /workspace/envs/pixal3d/.done_<step>. Log: run it as
 #   setsid nohup bash external/pixal3d/install_runai.sh > /workspace/logs/pixal3d_install.log 2>&1 < /dev/null &
 set -euo pipefail
+# The image has no git: apt-get it (NOT persistent -- redo after every workspace start, before `git pull` in /workspace/disc;
+# there `git pull` says "Cannot fast-forward to multiple branches" -> use `git fetch origin analysis && git merge --ff-only origin/analysis`).
+command -v git >/dev/null || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git; }
 WS=/workspace; V=$WS/envs/pixal3d; X=$WS/envs/pixal3d_ext
 export HF_HOME=$WS/.cache/huggingface MAX_JOBS=${MAX_JOBS:-8}
 ARCH=$(python -c "import torch; c=torch.cuda.get_device_capability(); print(f'{c[0]}.{c[1]}')")   # e.g. 8.6 (A5000 / A6000)
