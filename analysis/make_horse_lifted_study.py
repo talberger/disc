@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 H, GAP, PAD = 320, 6, 46
 ROWS = [('SAM 1 map, lifted teacher', 'sam1', ['zs', 'sam1_lifted_stage1', 'sam1_lifted_stage2', 'sam1_lifted_perseg']),
         ('VLPart map, lifted teacher', 'vlp', ['zs', 'vlp_lifted_stage1', 'vlp_lifted_stage2', 'vlp_lifted_perseg']),
+        ('VLPart 4-seg map, lifted teacher', 'vlp4', ['zs', 'vlp4_lifted_stage1', 'vlp4_lifted_stage2', 'vlp4_lifted_perseg']),
         ('SAM 1 map, 2D teacher (before)', 'sam1', ['zs', 'sam1_2d_stage1', 'sam1_2d_stage2', 'sam1_2d_perseg'])]
 COLS = ['ZS', 'stage 1', 'stage 2 (two-stage)', 'per-seg only']
 

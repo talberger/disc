@@ -10,6 +10,7 @@ source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 TAG=lvis56069; CLASS=horse
 SRC=data/densepose_lvis/runs_debug_merge0.015_amodal_fillseg_sam3mask/$TAG
 VLP=data/densepose_lvis/fine_segments_vlpart/${TAG}_fine_segments_pascalpart_thr0.5.pth
+VLP4=data/densepose_lvis/fine_segments_vlpart/${TAG}_fine_segments_partimagenet_thr0.3.pth   # 4 segs (pod 52's map)
 LIFT=/workspace/pixal3d_out/geom/horse_${TAG}_lift.pth
 L=data/densepose_lvis/lifted/$TAG; O=$L/study; mkdir -p $O
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
@@ -22,6 +23,8 @@ run env MODE=twostage                               # exists -> eval only
 run env MODE=perseg
 run env MODE=twostage FINESEG=$VLP RUNTAG=_vlpart5
 run env MODE=perseg   FINESEG=$VLP RUNTAG=_vlpart5
+# VLPart partimagenet>=0.3 (4 segs; Tal 10-26): the two trainings side by side on the GPU
+run env MODE=twostage FINESEG=$VLP4 RUNTAG=_vlpart4 & run env MODE=perseg FINESEG=$VLP4 RUNTAG=_vlpart4 & wait
 
 # run dirs: name | pred_f | segment map | mu run dir (for the ellipses)
 R=$L/encoder_loraW_all_r4_phase2_lifted
@@ -33,6 +36,9 @@ PF[sam1_lifted_perseg]=${R}_perseg/alpha/alpha0.5/pred_f.pth;              SEG[s
 PF[vlp_lifted_stage1]=${R}_vlpart5/alpha_stageA_end/alpha0.5/pred_f.pth;   SEG[vlp_lifted_stage1]=$VLP
 PF[vlp_lifted_stage2]=${R}_vlpart5/alpha/alpha0.5/pred_f.pth;              SEG[vlp_lifted_stage2]=$VLP; MU[vlp_lifted_stage2]=${R}_vlpart5
 PF[vlp_lifted_perseg]=${R}_perseg_vlpart5/alpha/alpha0.5/pred_f.pth;       SEG[vlp_lifted_perseg]=$VLP; MU[vlp_lifted_perseg]=${R}_perseg_vlpart5
+PF[vlp4_lifted_stage1]=${R}_vlpart4/alpha_stageA_end/alpha0.5/pred_f.pth;   SEG[vlp4_lifted_stage1]=$VLP4
+PF[vlp4_lifted_stage2]=${R}_vlpart4/alpha/alpha0.5/pred_f.pth;              SEG[vlp4_lifted_stage2]=$VLP4; MU[vlp4_lifted_stage2]=${R}_vlpart4
+PF[vlp4_lifted_perseg]=${R}_perseg_vlpart4/alpha/alpha0.5/pred_f.pth;       SEG[vlp4_lifted_perseg]=$VLP4; MU[vlp4_lifted_perseg]=${R}_perseg_vlpart4
 PF[sam1_2d_stage2]=$SRC/encoder_loraW_all_r4_phase2/alpha/alpha0.5/pred_f.pth; SEG[sam1_2d_stage2]=$SRC/${TAG}_fine_segments.pth; MU[sam1_2d_stage2]=$SRC/encoder_loraW_all_r4_phase2
 PF[sam1_2d_perseg]=data/densepose_lvis/runs_xseg/$TAG/perseg/alpha/alpha0.5/pred_f.pth; SEG[sam1_2d_perseg]=$SRC/${TAG}_fine_segments.pth; MU[sam1_2d_perseg]=data/densepose_lvis/runs_xseg/$TAG/perseg
 [ -f $SRC/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth ] && PF[sam1_2d_stage1]=$SRC/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth
@@ -67,5 +73,5 @@ done
 
 echo "##### compose [$(date -u +%T)]"
 python analysis/make_horse_lifted_study.py --src $SRC --tag $TAG --study_dir $O --table $L/${TAG}_mask_geo_table_lifted_seed0.pth \
-    --maps sam1=$SRC/${TAG}_fine_segments.pth vlp=$VLP --shic_results data/densepose_lvis/eval_shic_$CLASS/results.json
+    --maps sam1=$SRC/${TAG}_fine_segments.pth vlp=$VLP vlp4=$VLP4 --shic_results data/densepose_lvis/eval_shic_$CLASS/results.json
 echo "STUDY DONE [$(date -u +%T)]"
