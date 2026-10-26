@@ -17,7 +17,8 @@ GEO228=data/densepose_lvis/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 # MODE=twostage (default) | perseg (per-segment aniso 16 + 0 from step 1, no stage 1). FINESEG=<other segment map> (must label the same pixels,
 # e.g. a fillseg map -> the same centres, the run checks it); RUNTAG=<suffix> for the run dir. (Tal, 2026-10-26: horse 56069 study.)
 MODE=${MODE:-twostage}; FINESEG=${FINESEG:-$SRC/${TAG}_fine_segments.pth}; RUNTAG=${RUNTAG:-}
-O=${OUT:-data/densepose_lvis/lifted}/$TAG; P2=$O/encoder_loraW_all_r4_phase2_lifted$([ $MODE = perseg ] && echo _perseg)$RUNTAG; mkdir -p $O
+PS=; [ $MODE = perseg ] && PS=_perseg   # (no $(...) with a failing test in an assignment: set -e would exit)
+O=${OUT:-data/densepose_lvis/lifted}/$TAG; P2=$O/encoder_loraW_all_r4_phase2_lifted$PS$RUNTAG; mkdir -p $O
 T2D=$SRC/${TAG}_mask_geo_table_2d_seed0.pth; TL=$O/${TAG}_mask_geo_table_lifted_seed0.pth
 AMODAL=(); [ -f $SRC/${TAG}_amodal_mask.pth ] && AMODAL=(--geodesic_domain_mask_path $SRC/${TAG}_amodal_mask.pth)
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
@@ -33,8 +34,7 @@ elif [ $MODE = perseg ]; then
 else
   NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --mu_switch_step 150 --switch_nin 16 --switch_nout 0)
 fi
-SCOPE=$([ $MODE = perseg ] && echo segment_aniso || echo global_then_segment_aniso)
-STAGEA=$([ $MODE = perseg ] || echo --save_stageA_end)
+if [ $MODE = perseg ]; then SCOPE=segment_aniso; STAGEA=; else SCOPE=global_then_segment_aniso; STAGEA=--save_stageA_end; fi
 echo "##### $TAG: $NSEG segments, lifted diameter $DIAG #####"
 [ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
     --object_mask_path $SRC/${TAG}_mask.pth --fine_seg_path $FINESEG \
@@ -46,8 +46,9 @@ echo "##### $TAG: $NSEG segments, lifted diameter $DIAG #####"
     --lora_w_rank 4 --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints $STAGEA --out_dir $P2 \
     > $P2.train.log 2>&1
 [ $NSEG -eq 1 ] && [ ! -f $P2/encoder_checkpoint_stageA_end.pth ] && cp $P2/encoder_checkpoint.pth $P2/encoder_checkpoint_stageA_end.pth
-for ck in encoder_checkpoint $([ -f $P2/encoder_checkpoint_stageA_end.pth ] && echo encoder_checkpoint_stageA_end); do
-  d=$P2/$([ $ck = encoder_checkpoint ] && echo alpha || echo alpha_stageA_end)
+CKS=encoder_checkpoint; [ -f $P2/encoder_checkpoint_stageA_end.pth ] && CKS="$CKS encoder_checkpoint_stageA_end"
+for ck in $CKS; do
+  if [ $ck = encoder_checkpoint ]; then d=$P2/alpha; else d=$P2/alpha_stageA_end; fi
   [ -f $d/alpha0.5/pred_f.pth ] || python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
       --lora_checkpoint $P2/$ck.pth --alphas 0.5 --out_dir $d > /dev/null
 done
