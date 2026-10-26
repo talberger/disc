@@ -19,7 +19,9 @@ GEO228=data/densepose_lvis/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 MODE=${MODE:-twostage}; FINESEG=${FINESEG:-$SRC/${TAG}_fine_segments.pth}; RUNTAG=${RUNTAG:-}
 PS=; [ $MODE = perseg ] && PS=_perseg   # (no $(...) with a failing test in an assignment: set -e would exit)
 O=${OUT:-data/densepose_lvis/lifted}/$TAG; P2=$O/encoder_loraW_all_r4_phase2_lifted$PS$RUNTAG; mkdir -p $O
-T2D=$SRC/${TAG}_mask_geo_table_2d_seed0.pth; TL=$O/${TAG}_mask_geo_table_lifted_seed0.pth
+# T2D=<other 2D table> (a segment map that labels other pixels -> other centres; 2026-10-26, horse 164135 + VLPart 8-seg): the lifted
+# table is then built from it and named with RUNTAG. S2DIR / S2STAGE1 = the 2D two-stage run to compare with (default: under SRC).
+if [ -n "${T2D:-}" ]; then TL=$O/${TAG}_mask_geo_table_lifted_seed0$RUNTAG.pth; else T2D=$SRC/${TAG}_mask_geo_table_2d_seed0.pth; TL=$O/${TAG}_mask_geo_table_lifted_seed0.pth; fi
 AMODAL=(); [ -f $SRC/${TAG}_amodal_mask.pth ] && AMODAL=(--geodesic_domain_mask_path $SRC/${TAG}_amodal_mask.pth)
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
 
@@ -52,10 +54,12 @@ for ck in $CKS; do
   [ -f $d/alpha0.5/pred_f.pth ] || python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
       --lora_checkpoint $P2/$ck.pth --alphas 0.5 --out_dir $d > /dev/null
 done
-S2=$SRC/encoder_loraW_all_r4_phase2
-ARMS=(--arm zs=$P1/pred_f.pth --arm 2d_final=$S2/alpha/alpha0.5/pred_f.pth --arm lifted_final=$P2/alpha/alpha0.5/pred_f.pth)
+S2=${S2DIR:-$SRC/encoder_loraW_all_r4_phase2}
+ARMS=(--arm zs=$P1/pred_f.pth --arm lifted_final=$P2/alpha/alpha0.5/pred_f.pth)
+[ -f $S2/alpha/alpha0.5/pred_f.pth ] && ARMS+=(--arm 2d_final=$S2/alpha/alpha0.5/pred_f.pth)
 [ -f $P2/alpha_stageA_end/alpha0.5/pred_f.pth ] && ARMS+=(--arm lifted_stage1=$P2/alpha_stageA_end/alpha0.5/pred_f.pth)
-[ -f $S2/alpha_stageA_end/alpha0.5/pred_f.pth ] && ARMS+=(--arm 2d_stage1=$S2/alpha_stageA_end/alpha0.5/pred_f.pth)
+S2S1=${S2STAGE1:-$S2/alpha_stageA_end/alpha0.5/pred_f.pth}
+[ -f $S2S1 ] && ARMS+=(--arm 2d_stage1=$S2S1)
 python analysis/eval_lvis_ours.py --run_dir $SRC --tag $TAG --obj_path $OBJ --name $NAME --geodesics_path $GEO228 \
     --out_json $P2.eval.json "${ARMS[@]}" > $P2.eval.log 2>&1
 [ $MODE = twostage ] && [ -z "$RUNTAG" ] && cp $P2.eval.json $O/eval_lifted.json

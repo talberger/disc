@@ -47,7 +47,9 @@ def main():
     ap.add_argument('--src', required=True); ap.add_argument('--tag', required=True); ap.add_argument('--study_dir', required=True)
     ap.add_argument('--table', required=True); ap.add_argument('--maps', nargs='+', required=True, help='name=path')
     ap.add_argument('--shic_results', default=None)
+    ap.add_argument('--rows_json', default=None, help='[[title, map key, [4 arms: zs, stage 1, stage 2, per-seg]], ...] (default: the 56069 rows)')
     a = ap.parse_args()
+    rows_def = json.loads(a.rows_json) if a.rows_json else ROWS
     f, fs = font(17), font(13)
     ev = json.load(open(f'{a.study_dir}/study_eval.json'))['arms']
     err = {k: v['soft_snap'] for k, v in ev.items()}
@@ -71,7 +73,7 @@ def main():
 
     # back-projections
     rows = []
-    for title, mk, arms in ROWS:
+    for title, mk, arms in rows_def:
         seg, n = seg_overlay(photo, segs[mk], centres, gtp)
         panels = [(title, photo.resize((w, H))), (f'{n} segments + centres', seg.resize((w, H)))]
         sp = f'{os.path.dirname(a.study_dir.rstrip("/"))}/backproj/{a.tag}_SHIC_backproj.png'   # from scripts/make_lifted_figs.sh
@@ -111,7 +113,7 @@ def main():
         s = json.load(open(a.shic_results))['bbox']['per_instance'].get(a.tag[4:])
         if s is not None:
             lines.append('%-22s %28s %6.1f' % ('SHIC (its own eval)', '', s))
-    for _, _, arms in ROWS:
+    for _, _, arms in rows_def:
         for arm in arms:
             if arm in err:
                 e = err[arm]; lines.append('%-22s %28s %6.1f' % (arm, ' / '.join(f'{x:5.1f}' for x in e['per_point']), e['all']['mean']))
