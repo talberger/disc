@@ -62,6 +62,14 @@ def main():
             lines.append('%-8s' % i + ''.join('%15s' % (f'{res[i][x]:.1f}' if x in res[i] else '-') for x in ARMS))
         lines.append('%-8s' % 'MEAN' + ''.join('%15s' % (f'{np.mean([res[i][x] for i in ids if x in res[i]]):.1f}'
                                                          if any(x in res[i] for i in ids) else '-') for x in ARMS))
+        # Tal's questions (2026-10-26): (1) does stage 2 add to stage 1 / is per-seg alone better, (2) does the hybrid work,
+        # (3) did the lift help (lifted vs the same arm with the 2D teacher)
+        lines.append('  QUESTIONS (paired, negative = the first arm better):')
+        for x, ref in [('lifted_stage2', 'lifted_stage1'), ('lifted_perseg', 'lifted_stage2'), ('lifted_hybrid', 'lifted_stage2'),
+                       ('lifted_hybrid', 'lifted_perseg'), ('lifted_stage1', '2d_stage1'), ('lifted_stage2', '2d_stage2'), ('lifted_perseg', '2d_perseg')]:
+            d = [res[i][x] - res[i][ref] for i in ids if x in res[i] and ref in res[i]]
+            if len(d) > 1:
+                n, m, se = stats(d); lines.append(f'    {x:14s} - {ref:14s} n={n:2d} {m:+6.2f} (SE {se:.2f}) first better on {sum(v < 0 for v in d)}/{n}')
         for ref in ('SHIC', 'zs', '2d_stage2'):
             lines.append(f'  paired arm - {ref} (negative = arm better):')
             for x in ['lifted_stage1', 'lifted_stage2', 'lifted_perseg', 'lifted_hybrid', '2d_stage2', '2d_perseg']:
