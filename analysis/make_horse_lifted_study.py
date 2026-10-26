@@ -9,11 +9,12 @@ import numpy as np, torch
 from PIL import Image, ImageDraw, ImageFont
 
 H, GAP, PAD = 320, 6, 46
-ROWS = [('SAM 1 map, lifted teacher', 'sam1', ['zs', 'sam1_lifted_stage1', 'sam1_lifted_stage2', 'sam1_lifted_perseg']),
-        ('VLPart map, lifted teacher', 'vlp', ['zs', 'vlp_lifted_stage1', 'vlp_lifted_stage2', 'vlp_lifted_perseg']),
-        ('VLPart 4-seg map, lifted teacher', 'vlp4', ['zs', 'vlp4_lifted_stage1', 'vlp4_lifted_stage2', 'vlp4_lifted_perseg']),
-        ('SAM 1 map, 2D teacher (before)', 'sam1', ['zs', 'sam1_2d_stage1', 'sam1_2d_stage2', 'sam1_2d_perseg'])]
-COLS = ['ZS', 'stage 1', 'stage 2 (two-stage)', 'per-seg only']
+ROWS = [('SAM 1 map, lifted teacher', 'sam1', ['zs', 'sam1_lifted_stage1', 'sam1_lifted_stage2', 'sam1_lifted_perseg', 'sam1_lifted_hybrid']),
+        ('VLPart 5-seg map, lifted teacher', 'vlp', ['zs', 'vlp_lifted_stage1', 'vlp_lifted_stage2', 'vlp_lifted_perseg', 'vlp_lifted_hybrid']),
+        ('VLPart 4-seg map, lifted teacher', 'vlp4', ['zs', 'vlp4_lifted_stage1', 'vlp4_lifted_stage2', 'vlp4_lifted_perseg', 'vlp4_lifted_hybrid']),
+        ('SAM 1 map, 2D teacher (before)', 'sam1', ['zs', 'sam1_2d_stage1', 'sam1_2d_stage2', 'sam1_2d_perseg', 'none'])]
+COLS = ['ZS', 'stage 1', 'stage 2 (two-stage)', 'per-seg only', 'hybrid (1 stage)']
+MU_COLS = [(2, 'mu: stage 2'), (3, 'mu: per-seg'), (4, 'mu: hybrid')]   # ellipse columns: index into a row's arms
 
 
 def font(size):
@@ -87,6 +88,9 @@ def main():
                 panels.append((t, Image.open(p).convert('RGB').resize((w, H))))
             else:
                 panels.append((f'{col}  n/a', Image.new('RGB', (w, H), (235, 235, 235))))
+        for idx, ttl in MU_COLS:                                      # the learned ellipses of the trained arms (Tal 2026-10-26)
+            ep = f'{a.study_dir}/ellipses_{arms[idx]}.png' if idx < len(arms) else ''
+            panels.append((ttl, Image.open(ep).convert('RGB').resize((w, H)) if os.path.exists(ep) else Image.new('RGB', (w, H), (235, 235, 235))))
         rows.append(panels)
     Wd = max(sum(im.width + GAP for _, im in r) for r in rows)
     out = Image.new('RGB', (Wd, len(rows) * (H + PAD) + 34), 'white'); d = ImageDraw.Draw(out)

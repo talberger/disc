@@ -14,10 +14,10 @@ CLASS=${CLASS:?}; TAG=${TAG:?}; SRC=${SRC:?}; LIFT=${LIFT:?}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth
 GEO228=data/densepose_lvis/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
-# MODE=twostage (default) | perseg (per-segment aniso 16 + 0 from step 1, no stage 1). FINESEG=<other segment map> (must label the same pixels,
+# MODE=twostage (default) | perseg (per-segment aniso 16 + 0 from step 1, no stage 1) | hybrid (--mu_scope segment_aniso_xglobal, 8 in + 8 out, ONE stage). FINESEG=<other segment map> (must label the same pixels,
 # e.g. a fillseg map -> the same centres, the run checks it); RUNTAG=<suffix> for the run dir. (Tal, 2026-10-26: horse 56069 study.)
 MODE=${MODE:-twostage}; FINESEG=${FINESEG:-$SRC/${TAG}_fine_segments.pth}; RUNTAG=${RUNTAG:-}
-PS=; [ $MODE = perseg ] && PS=_perseg   # (no $(...) with a failing test in an assignment: set -e would exit)
+PS=; [ $MODE = perseg ] && PS=_perseg; [ $MODE = hybrid ] && PS=_hybrid   # (no $(...) with a failing test in an assignment: set -e would exit)
 O=${OUT:-data/densepose_lvis/lifted}/$TAG; P2=$O/encoder_loraW_all_r4_phase2_lifted$PS$RUNTAG; mkdir -p $O
 # T2D=<other 2D table> (a segment map that labels other pixels -> other centres; 2026-10-26, horse 164135 + VLPart 8-seg): the lifted
 # table is then built from it and named with RUNTAG. S2DIR / S2STAGE1 = the 2D two-stage run to compare with (default: under SRC).
@@ -33,10 +33,12 @@ if [ $NSEG -eq 1 ]; then   # one segment: stage 1 only, all 16 neighbours inside
   NB=(--num_neighbors_in_segment 16 --num_neighbors_out_segment 0 --mu_switch_step 150 --switch_nin 16 --switch_nout 0 --num_iters 149)
 elif [ $MODE = perseg ]; then
   NB=(--num_neighbors_in_segment 16 --num_neighbors_out_segment 0)
+elif [ $MODE = hybrid ]; then   # stage 1 + 2 together (Tal 2026-10-26): in-seg pair -> its segment ellipse, cross-seg pair -> one global ellipse
+  NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8)
 else
   NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --mu_switch_step 150 --switch_nin 16 --switch_nout 0)
 fi
-if [ $MODE = perseg ]; then SCOPE=segment_aniso; STAGEA=; else SCOPE=global_then_segment_aniso; STAGEA=--save_stageA_end; fi
+if [ $MODE = perseg ]; then SCOPE=segment_aniso; STAGEA=; elif [ $MODE = hybrid ]; then SCOPE=segment_aniso_xglobal; STAGEA=; else SCOPE=global_then_segment_aniso; STAGEA=--save_stageA_end; fi
 echo "##### $TAG: $NSEG segments, lifted diameter $DIAG #####"
 [ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
     --object_mask_path $SRC/${TAG}_mask.pth --fine_seg_path $FINESEG \

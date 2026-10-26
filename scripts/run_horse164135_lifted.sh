@@ -19,6 +19,7 @@ run() { CLASS=$CLASS TAG=$TAG SRC=$SRC LIFT=$LIFT S2DIR=$TS S2STAGE1=$TS/step150
 echo "##### training [$(date -u +%T)]"
 run env MODE=twostage & run env MODE=twostage FINESEG=$VLP8 T2D=$T2D8 RUNTAG=_vlpart8 & wait     # each builds its own lifted table
 run env MODE=perseg   & run env MODE=perseg   FINESEG=$VLP8 T2D=$T2D8 RUNTAG=_vlpart8 & wait
+run env MODE=hybrid   & run env MODE=hybrid   FINESEG=$VLP8 T2D=$T2D8 RUNTAG=_vlpart8 & wait     # stage 1 + 2 together (Tal 2026-10-26)
 
 R=$L/encoder_loraW_all_r4_phase2_lifted
 declare -A PF SEG MU
@@ -32,14 +33,17 @@ PF[vlp8_lifted_stage1]=${R}_vlpart8/alpha_stageA_end/alpha0.5/pred_f.pth; SEG[vl
 PF[vlp8_lifted_stage2]=${R}_vlpart8/alpha/alpha0.5/pred_f.pth;            SEG[vlp8_lifted_stage2]=$VLP8; MU[vlp8_lifted_stage2]=${R}_vlpart8
 PF[vlp8_lifted_perseg]=${R}_perseg_vlpart8/alpha/alpha0.5/pred_f.pth;     SEG[vlp8_lifted_perseg]=$VLP8; MU[vlp8_lifted_perseg]=${R}_perseg_vlpart8
 
+PF[sam1_lifted_hybrid]=${R}_hybrid/alpha/alpha0.5/pred_f.pth;          SEG[sam1_lifted_hybrid]=$SRC/${TAG}_fine_segments.pth; MU[sam1_lifted_hybrid]=${R}_hybrid
+PF[vlp8_lifted_hybrid]=${R}_hybrid_vlpart8/alpha/alpha0.5/pred_f.pth;   SEG[vlp8_lifted_hybrid]=$VLP8; MU[vlp8_lifted_hybrid]=${R}_hybrid_vlpart8
+
 echo "##### eval [$(date -u +%T)]"
 ARMS=(); for k in "${!PF[@]}"; do [ -f ${PF[$k]} ] && ARMS+=(--arm $k=${PF[$k]}); done
 python analysis/eval_lvis_ours.py --run_dir $SRC --tag $TAG --obj_path $OBJ --name $NAME --geodesics_path $GEO228 --out_json $O/study_eval.json "${ARMS[@]}" > $O/eval.log 2>&1
 
 echo "##### leg (seg 3 of the old map) [$(date -u +%T)]"
 python analysis/diag_seg_mapping.py --seg 3 --cols 2 3 4 --fs 18 --out $O/leg_seg3.png \
-    --run_dirs $TS $R ${R}_perseg ${R}_vlpart8 ${R}_perseg_vlpart8 \
-    --labels "2D two-stage (09-28)" "lifted two-stage" "lifted per-seg" "lifted two-stage, VLPart 8" "lifted per-seg, VLPart 8" > $O/leg_seg3.txt 2>&1 \
+    --run_dirs $TS $R ${R}_perseg ${R}_hybrid ${R}_vlpart8 ${R}_perseg_vlpart8 ${R}_hybrid_vlpart8 \
+    --labels "2D two-stage (09-28)" "lifted two-stage" "lifted per-seg" "lifted hybrid" "lifted two-stage, VLPart 8" "lifted per-seg, VLPart 8" "lifted hybrid, VLPart 8" > $O/leg_seg3.txt 2>&1 \
     || echo "  leg figure FAILED ($O/leg_seg3.txt)"
 
 echo "##### back-projections (+ SHIC) [$(date -u +%T)]"
@@ -77,7 +81,7 @@ done
 echo "##### compose [$(date -u +%T)]"
 python analysis/make_horse_lifted_study.py --src $SRC --tag $TAG --study_dir $O --table $L/${TAG}_mask_geo_table_lifted_seed0.pth \
     --maps sam1=$SRC/${TAG}_fine_segments.pth vlp8=$VLP8 --shic_results data/densepose_lvis/eval_shic_$CLASS/results.json \
-    --rows_json '[["SAM 1 map, lifted teacher", "sam1", ["zs", "sam1_lifted_stage1", "sam1_lifted_stage2", "sam1_lifted_perseg"]],
-                  ["VLPart 8-seg map, lifted teacher", "vlp8", ["zs", "vlp8_lifted_stage1", "vlp8_lifted_stage2", "vlp8_lifted_perseg"]],
-                  ["SAM 1 map, 2D teacher (09-28)", "sam1", ["zs", "sam1_2d_stage1", "sam1_2d_stage2", "none"]]]'
+    --rows_json '[["SAM 1 map, lifted teacher", "sam1", ["zs", "sam1_lifted_stage1", "sam1_lifted_stage2", "sam1_lifted_perseg", "sam1_lifted_hybrid"]],
+                  ["VLPart 8-seg map, lifted teacher", "vlp8", ["zs", "vlp8_lifted_stage1", "vlp8_lifted_stage2", "vlp8_lifted_perseg", "vlp8_lifted_hybrid"]],
+                  ["SAM 1 map, 2D teacher (09-28)", "sam1", ["zs", "sam1_2d_stage1", "sam1_2d_stage2", "none", "none"]]]'
 echo "HORSE 164135 DONE [$(date -u +%T)]"

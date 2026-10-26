@@ -25,6 +25,8 @@ run env MODE=twostage FINESEG=$VLP RUNTAG=_vlpart5
 run env MODE=perseg   FINESEG=$VLP RUNTAG=_vlpart5
 # VLPart partimagenet>=0.3 (4 segs; Tal 10-26): the two trainings side by side on the GPU
 run env MODE=twostage FINESEG=$VLP4 RUNTAG=_vlpart4 & run env MODE=perseg FINESEG=$VLP4 RUNTAG=_vlpart4 & wait
+# HYBRID (Tal 2026-10-26): stage 1 + 2 together, one stage -- in-seg pairs on the segment ellipse, cross-seg pairs on one global ellipse
+run env MODE=hybrid & run env MODE=hybrid FINESEG=$VLP RUNTAG=_vlpart5 & run env MODE=hybrid FINESEG=$VLP4 RUNTAG=_vlpart4 & wait
 
 # run dirs: name | pred_f | segment map | mu run dir (for the ellipses)
 R=$L/encoder_loraW_all_r4_phase2_lifted
@@ -39,6 +41,9 @@ PF[vlp_lifted_perseg]=${R}_perseg_vlpart5/alpha/alpha0.5/pred_f.pth;       SEG[v
 PF[vlp4_lifted_stage1]=${R}_vlpart4/alpha_stageA_end/alpha0.5/pred_f.pth;   SEG[vlp4_lifted_stage1]=$VLP4
 PF[vlp4_lifted_stage2]=${R}_vlpart4/alpha/alpha0.5/pred_f.pth;              SEG[vlp4_lifted_stage2]=$VLP4; MU[vlp4_lifted_stage2]=${R}_vlpart4
 PF[vlp4_lifted_perseg]=${R}_perseg_vlpart4/alpha/alpha0.5/pred_f.pth;       SEG[vlp4_lifted_perseg]=$VLP4; MU[vlp4_lifted_perseg]=${R}_perseg_vlpart4
+PF[sam1_lifted_hybrid]=${R}_hybrid/alpha/alpha0.5/pred_f.pth;          SEG[sam1_lifted_hybrid]=$SRC/${TAG}_fine_segments.pth; MU[sam1_lifted_hybrid]=${R}_hybrid
+PF[vlp_lifted_hybrid]=${R}_hybrid_vlpart5/alpha/alpha0.5/pred_f.pth;     SEG[vlp_lifted_hybrid]=$VLP; MU[vlp_lifted_hybrid]=${R}_hybrid_vlpart5
+PF[vlp4_lifted_hybrid]=${R}_hybrid_vlpart4/alpha/alpha0.5/pred_f.pth;    SEG[vlp4_lifted_hybrid]=$VLP4; MU[vlp4_lifted_hybrid]=${R}_hybrid_vlpart4
 PF[sam1_2d_stage2]=$SRC/encoder_loraW_all_r4_phase2/alpha/alpha0.5/pred_f.pth; SEG[sam1_2d_stage2]=$SRC/${TAG}_fine_segments.pth; MU[sam1_2d_stage2]=$SRC/encoder_loraW_all_r4_phase2
 PF[sam1_2d_perseg]=data/densepose_lvis/runs_xseg/$TAG/perseg/alpha/alpha0.5/pred_f.pth; SEG[sam1_2d_perseg]=$SRC/${TAG}_fine_segments.pth; MU[sam1_2d_perseg]=data/densepose_lvis/runs_xseg/$TAG/perseg
 [ -f $SRC/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth ] && PF[sam1_2d_stage1]=$SRC/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth
