@@ -139,6 +139,16 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     lifted - 2D: -4.76 (SE 7.26), better on 4/6. **The lifted teacher fixes the stage-1 collapse on the crowded cases (horse, 159218, 212408)**;
     still behind SHIC on most. **154651 FAILS (37 -> 61):** the lower-left piece (leg in the water) comes out geodesically far from everything on
     the lifted mesh (`lvis154651_lifted_vs_2d_rows.png`) -- a lift error on a partly hidden body. 31383: no change.
+  - **HORSE 56069 STUDY (Tal, 10-26; `scripts/run_horse56069_lifted_study.sh`, figures on the Mac `demo/pixal3d/horse56069_study/`):**
+    | map, teacher | ZS | stage 1 | stage 2 (two-stage) | per-seg only |
+    |---|---|---|---|---|
+    | SAM 1 (4 segs, head+body one segment), lifted | 10.3 | 16.9 (5/26/20) | 15.9 (5/26/17) | 43.7 (54/65/12) |
+    | VLPart pascal_part>=0.5 (5 segs, head + muzzle split), lifted | 10.3 | 12.4 (2/26/9) | 14.6 (5/26/12) | **10.8 (7/24/2)** |
+    | SAM 1, 2D teacher (before) | 10.3 | - | 39.3 (7/15/95) | 17.4 (17/26/10) |
+    (per GT point 1/2/3 = nose; SHIC 6.9; 1 seed.) VLPart map + lifted teacher = the best of ours here (per-seg only ~ ZS, nose 2.3).
+    SAM 1 + lifted per-seg only FAILS on pts 1-2 (shoulder). Ellipses (`ellipses_study.png`): shoulder segment (SAM 1 seg 2) ratio 2.68 with the
+    2D teacher -> 1.17 with the lifted one = part of the ellipse was compensating 2D foreshortening (Tal's prediction: the rest = shape mismatch).
+    Bug on the way: `$([ test ] && ...)` in an assignment under set -e exited silently (lost 25 min); fixed in `0aedf7e`.
   - **NEXT (Tal decides):** look into 154651; the 20-bear subset lifted vs 2D; if it holds: ONE workspace with both envs (Pixal3D venv + disc env)
     to avoid the ~10 min workspace switches. Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md`.
 
