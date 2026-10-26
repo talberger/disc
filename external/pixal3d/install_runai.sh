@@ -33,7 +33,8 @@ run nvdiffrec bash -c "rm -rf $X/nvdiffrec && git clone -b renderutils https://g
 run cumesh bash -c "rm -rf $X/CuMesh && git clone --recursive https://github.com/JeffreyXiang/CuMesh.git $X/CuMesh && pip install $X/CuMesh --no-build-isolation"
 run flexgemm bash -c "rm -rf $X/FlexGEMM && git clone --recursive https://github.com/JeffreyXiang/FlexGEMM.git $X/FlexGEMM && pip install $X/FlexGEMM --no-build-isolation"
 run o_voxel bash -c "rm -rf $X/o-voxel && cp -r $WS/trellis2_repo/o-voxel $X/o-voxel && pip install $X/o-voxel --no-build-isolation"
-run pixal_reqs bash -c "cd $WS/pixal3d_repo && pip install -r requirements.txt"
+# Pixal3D pins trimesh==4.10.1 but MoGe master (its requirements line 1) now needs trimesh>=4.11 -> install a copy with the pin relaxed (2026-10-26)
+run pixal_reqs bash -c "sed 's/^trimesh==.*/trimesh>=4.11/' $WS/pixal3d_repo/requirements.txt > $X/requirements_pixal3d.txt && pip install -r $X/requirements_pixal3d.txt"
 run natten bash -c "NATTEN_CUDA_ARCH=$ARCH NATTEN_N_WORKERS=$MAX_JOBS pip install natten==0.21.0 --no-build-isolation"
 run utils3d_pixal bash -c "pip install https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl"
 echo "##### import check [$(date -u +%T)]"
