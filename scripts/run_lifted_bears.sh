@@ -59,7 +59,7 @@ eval|figs)
       B=$L/backproj; mkdir -p $B
       [ -f $B/${tag}_position_color.png ] || python analysis/pixel_coloring.py --img_path $src/$tag.png --mask_path $src/${tag}_mask.pth \
           --mode position --save_dir $B --output_path $B/${tag}_position_color.png > $B/log.txt 2>&1
-      for k in zs lifted_stage1 lifted_stage2 lifted_perseg lifted_hybrid 2d_stage2; do
+      for k in zs lifted_stage1 lifted_stage2 lifted_perseg lifted_hybrid 2d_stage2 2d_perseg; do
         [ -f ${PF[$k]} ] && [ ! -f $B/${tag}_${k}_backproj.png ] || continue
         mkdir -p $B/soft_$k
         python analysis/run_in_one_process.py \

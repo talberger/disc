@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ARMS = ['SHIC', 'zs', 'lifted_stage1', 'lifted_stage2', 'lifted_perseg', 'lifted_hybrid', '2d_stage1', '2d_stage2', '2d_perseg']
 PANELS = [('SHIC', 'SHIC'), ('zs', 'ZS'), ('lifted_stage1', 'stage 1 (global)'), ('lifted_stage2', 'stage 2 (two-stage)'),
-          ('lifted_perseg', 'per-seg only'), ('lifted_hybrid', 'hybrid'), ('2d_stage2', '2D two-stage (before)')]
+          ('lifted_perseg', 'per-seg only'), ('lifted_hybrid', 'hybrid'), ('2d_stage2', '2D two-stage (before)'), ('2d_perseg', '2D per-seg (before)')]
 H, GAP, PAD = 260, 6, 44
 
 
