@@ -165,6 +165,16 @@ Goal (long-term): dense correspondence between an image and a 3D object.
     | SHIC | 7.4 | |
     The lifted two-stage keeps the leg on the RIGHT side (like 2D) but the 3-point error is a bit higher; with VLPart 8 the leg goes wholly to the
     WRONG leg (x+) without a bridge. Not a crowded-parts case, so the lifted teacher is not expected to help much here.
+  - **HYBRID arm (Tal, 10-26): stage 1 + 2 together** = `--mu_scope segment_aniso_xglobal`, 8 in + 8 out, ONE stage of 300 (in-seg pair -> its
+    segment ellipse, cross-seg pair -> one global ellipse); `MODE=hybrid` in run_lifted_instance.sh, both studies (`d4707dd`). Tal 10-26: figures show
+    only the SAM 1 + VLPart partimagenet>=0.3 maps (56069: 4 segs; 164135: the same threshold gives 8 segs).
+    | | two-stage | per-seg | hybrid |
+    |---|---|---|---|
+    | 56069 SAM 1 | 15.9 | 43.7 | 16.1 |
+    | 56069 VLPart 4 | 13.9 | 25.2 | 16.8 |
+    | 164135 SAM 1 (leg x-/x+/mixed) | 8.7 (100/0/0) | 9.8 (22/78/46) | **7.9** (98/2/22) |
+    | 164135 VLPart 8 | 8.6 (0/100/1) | 8.5 (0/74/0) | 8.8 (**100**/0/9) |
+    164135: hybrid = best lifted 3-point error, and the only VLPart 8 arm that puts the leg on the RIGHT side (with some bridge). 56069: no gain.
     Bug on the way: `$([ test ] && ...)` in an assignment under set -e exited silently (lost 25 min); fixed in `0aedf7e`.
   - **NEXT (Tal decides):** look into 154651; the 20-bear subset lifted vs 2D; if it holds: ONE workspace with both envs (Pixal3D venv + disc env)
     to avoid the ~10 min workspace switches. Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md`.
