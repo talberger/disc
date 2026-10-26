@@ -51,6 +51,9 @@ def main():
     f, fs = font(17), font(13)
     ev = json.load(open(f'{a.study_dir}/study_eval.json'))['arms']
     err = {k: v['soft_snap'] for k, v in ev.items()}
+    shic_err = None
+    if a.shic_results and os.path.exists(a.shic_results):
+        shic_err = json.load(open(a.shic_results))['bbox']['per_instance'].get(a.tag[4:])
     photo = Image.open(f'{a.src}/{a.tag}.png').convert('RGB'); w = round(photo.width * H / photo.height)
     centres = torch.load(a.table, map_location='cpu')['coords']; centres = centres.numpy() if torch.is_tensor(centres) else np.asarray(centres)
     gt = torch.load(f'{a.src}/{a.tag}_gt.pth', map_location='cpu'); gtp = list(zip(gt['rows'].tolist(), gt['cols'].tolist()))
@@ -71,6 +74,9 @@ def main():
     for title, mk, arms in ROWS:
         seg, n = seg_overlay(photo, segs[mk], centres, gtp)
         panels = [(title, photo.resize((w, H))), (f'{n} segments + centres', seg.resize((w, H)))]
+        sp = f'{os.path.dirname(a.study_dir.rstrip("/"))}/backproj/{a.tag}_SHIC_backproj.png'   # from scripts/make_lifted_figs.sh
+        panels.append((f'SHIC  {shic_err:.1f}' if shic_err is not None else 'SHIC',
+                       Image.open(sp).convert('RGB').resize((w, H)) if os.path.exists(sp) else Image.new('RGB', (w, H), (235, 235, 235))))
         for col, arm in zip(COLS, arms):
             p = f'{a.study_dir}/backproj/{a.tag}_{arm}_backproj.png'
             if arm in err and os.path.exists(p):
