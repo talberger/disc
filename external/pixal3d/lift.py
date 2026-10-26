@@ -1,17 +1,19 @@
 """2D -> 3D lift of one DISC crop with Pixal3D (Tal, 2026-10-26). Run INSIDE the Pixal3D clone with its env (Run:ai workspace pixal3d-env):
     cd /workspace/pixal3d_repo && source /workspace/envs/pixal3d/bin/activate
-    python /workspace/disc/external/pixal3d/lift.py --image <crop RGBA png> --out_dir <dir> --tag lvis56069
+    python /workspace/disc/external/pixal3d/lift.py --images <crop RGBA png> ... --out_dir <dir> [--low_vram] [--texture --glb]
+Models load ONCE per call (~8 min on the Run:ai PVC; the generation itself is ~30 s per image) -> pass many images per call.
+Default = geometry only (texture stage skipped).
 
 Input = our crop with OUR object mask as alpha (Pixal3D then uses the alpha; its background-removal model is never needed, so it is
 replaced by a stub -- the shipped one, briaai/RMBG-2.0, is a gated HF repo anyway).
 
-Output <out_dir>/<tag>_lift.pth:
+Output per image <out_dir>/<tag>_lift.pth:
     vertices [V,3] float32, faces [F,3] int64  -- the generated mesh in the camera's world frame (Pixal3D convention, below)
     pix_vertex [H,W] int64   -- for every pixel of OUR crop: the visible (front-most) mesh vertex, -1 = no surface there
     pix_depth  [H,W] float32 -- its camera depth (inf where none)
     camera {camera_angle_x, distance, mesh_scale}, crop_box (x0, y0, S): Pixal3D's square crop of our image (S x S pixels from (x0, y0)),
     variant (which vertex frame matched), iou / coverage (mesh silhouette vs our mask)
-plus <tag>.glb (textured, for viewing) and <tag>_lift_check.png (photo | mesh silhouette vs mask | depth).
+plus <tag>_lift_check.png (and <tag>.glb with --texture --glb) (photo | mesh silhouette vs mask | depth).
 
 Camera (pixal3d/trainers/flow_matching/mixins/image_conditioned_proj.py): Blender convention, c2w = [[1,0,0,0],[0,0,-1,-d],[0,1,0,0],[0,0,0,1]]
 (camera at (0,-d,0) looking at the origin, +Z up), focal = 16/tan(fov/2) mm on a 32 mm sensor, image = the square crop. Its grid points go
@@ -75,67 +77,70 @@ def splat(verts_world, cam, box, H, W):
     return pv.view(H, W), zbuf.view(H, W)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--image', required=True, help='our crop as RGBA, alpha = our object mask')
-    ap.add_argument('--out_dir', required=True); ap.add_argument('--tag', required=True)
-    ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--fov', type=float, default=-1.0, help='manual FOV (rad); default = MoGe-2 estimate')
-    ap.add_argument('--low_vram', action='store_true'); ap.add_argument('--resolution', type=int, default=-1)
-    ap.add_argument('--no_glb', action='store_true', help='skip the textured GLB (viewing only)')
-    a = ap.parse_args()
-    os.makedirs(a.out_dir, exist_ok=True)
+def geometry_only(pipeline):
+    """Skip Pixal3D's texture stage (we only need the shape): no texture conditioning, no texture sampling, shape-only decode."""
+    get_cond = pipeline.get_proj_cond_shape
+    pipeline.get_proj_cond_shape = lambda model, *a, **k: None if model is pipeline.image_cond_model_tex_1024 else get_cond(model, *a, **k)
+    pipeline.sample_tex_slat = lambda *a, **k: None
+
+    def decode_shape_only(shape_slat, tex_slat, resolution):
+        meshes, _ = pipeline.decode_shape_slat(shape_slat, resolution)
+        for m in meshes:
+            m.fill_holes()
+        return meshes
+    pipeline.decode_latent = decode_shape_only
+
+
+def lift_one(pipeline, moge, image, tag, a):
     t0 = time.time()
-    rgba = Image.open(a.image)
-    assert rgba.mode == 'RGBA', f'{a.image} is {rgba.mode}, need RGBA with our mask as alpha'
+    rgba = Image.open(image)
+    assert rgba.mode == 'RGBA', f'{image} is {rgba.mode}, need RGBA with our mask as alpha'
     W, H = rgba.size
     mask = np.array(rgba)[:, :, 3] > 127
     assert max(W, H) <= 1024, 'Pixal3D downscales inputs above 1024 px; crop_box below would not account for it'
-
-    pipeline = inf.init_pipeline(inf.MODEL_PATH, low_vram=a.low_vram)
     pre = pipeline.preprocess_image(rgba)
     box = square_crop_box(rgba)
     assert abs((box[2] - box[0]) - pre.size[0]) <= 1, (box, pre.size)
-    tmp = os.path.join(a.out_dir, f'_{a.tag}_preprocessed.png'); pre.save(tmp)
+    tmp = os.path.join(a.out_dir, f'_{tag}_preprocessed.png'); pre.save(tmp)
     if a.fov > 0:
         cam = {'camera_angle_x': a.fov, 'mesh_scale': 1.0,
                'distance': inf.distance_from_fov(a.fov, torch.tensor([-1.0, 0.0, 0.0]), torch.tensor([0, 511]), 1.0, 512)['distance_from_x']}
     else:
-        moge = inf.load_moge_model(device='cuda')
+        moge.cuda()
         cam = inf.get_camera_params_wild_moge(tmp, moge, device='cuda', mesh_scale=1.0, extend_pixel=0, image_resolution=512)
-        moge.cpu(); del moge; torch.cuda.empty_cache()
-    print(f'[lift] camera {cam}', flush=True)
+        if a.low_vram:
+            moge.cpu(); torch.cuda.empty_cache()
+    os.remove(tmp)
+    print(f'[lift] {tag}: camera {cam}', flush=True)
 
     torch.manual_seed(a.seed)
     ptype = f"{a.resolution if a.resolution > 0 else (1024 if a.low_vram else 1536)}_cascade"
     mesh_list, (_, _, res) = pipeline.run(
         pre, camera_params=cam, seed=a.seed, preprocess_image=False, return_latent=True, pipeline_type=ptype, max_num_tokens=49152,
-        sparse_structure_sampler_params={'steps': 12, 'guidance_strength': 7.5, 'guidance_rescale': 0.7, 'rescale_t': 5.0},
-        shape_slat_sampler_params={'steps': 12, 'guidance_strength': 7.5, 'guidance_rescale': 0.5, 'rescale_t': 3.0},
+        sparse_structure_sampler_params={'steps': a.steps, 'guidance_strength': 7.5, 'guidance_rescale': 0.7, 'rescale_t': 5.0},
+        shape_slat_sampler_params={'steps': a.steps, 'guidance_strength': 7.5, 'guidance_rescale': 0.5, 'rescale_t': 3.0},
         tex_slat_sampler_params={'steps': 12, 'guidance_strength': 1.0, 'guidance_rescale': 0.0, 'rescale_t': 3.0})
     mesh = mesh_list[0]
     V = mesh.vertices.float(); F = mesh.faces.long()
-    print(f'[lift] mesh {V.shape[0]} vertices, {F.shape[0]} faces, bbox {V.min(0).values.tolist()} .. {V.max(0).values.tolist()} '
-          f'[{time.time() - t0:.0f} s]', flush=True)
+    print(f'[lift] {tag}: mesh {V.shape[0]} vertices, {F.shape[0]} faces [{time.time() - t0:.0f} s]', flush=True)
 
-    # Which frame do the decoded vertices live in? Project both candidates, keep the one whose silhouette matches our mask.
+    # Which frame do the decoded vertices live in? Project both candidates, keep the one whose silhouette matches our mask
+    # (horse 56069: R 0.978 vs identity 0.734 -- R is right; kept as a per-image sanity check).
     mask_t = torch.from_numpy(mask).to(V.device)
     best = None
     for name, Vw in [('R', (V @ R.to(V.device).T) / cam['mesh_scale']), ('identity', V / cam['mesh_scale'])]:
         pv, zb = splat(Vw, cam, box, H, W)
         cov = pv >= 0
         iou = float((cov & mask_t).sum() / (cov | mask_t).sum())
-        print(f'[lift] frame {name:8s}: silhouette IoU vs our mask {iou:.3f}, mask covered {float((cov & mask_t).sum() / mask_t.sum()):.3f}',
-              flush=True)
         if best is None or iou > best[1]:
             best = (name, iou, Vw, pv, zb)
     name, iou, Vw, pv, zb = best
     coverage = float(((pv >= 0) & mask_t).sum() / mask_t.sum())
     out = {'vertices': Vw.cpu(), 'faces': F.cpu(), 'pix_vertex': pv.cpu(), 'pix_depth': zb.cpu(), 'camera': cam,
            'crop_box': tuple(float(b) for b in box[:2]) + (float(box[2] - box[0]),), 'variant': name, 'iou': iou, 'coverage': coverage,
-           'image': os.path.abspath(a.image), 'seed': a.seed, 'pipeline_type': ptype}
-    torch.save(out, os.path.join(a.out_dir, f'{a.tag}_lift.pth'))
-    print(f'[lift] kept frame {name}: IoU {iou:.3f}, mask pixels with a surface point {coverage:.3f}', flush=True)
+           'image': os.path.abspath(image), 'seed': a.seed, 'pipeline_type': ptype, 'steps': a.steps, 'texture': a.texture}
+    torch.save(out, os.path.join(a.out_dir, f'{tag}_lift.pth'))
+    print(f'[lift] {tag}: frame {name}, silhouette IoU {iou:.3f}, mask pixels with a surface point {coverage:.3f}', flush=True)
 
     # check figure: photo | silhouette (green = both, red = mask only, blue = mesh only) | depth of the visible surface
     photo = np.array(rgba.convert('RGB'))
@@ -145,19 +150,48 @@ def main():
     dep = np.zeros(z.shape, np.uint8)
     if fin.any():
         dep[fin] = (255 * (1 - (z[fin] - z[fin].min()) / (np.ptp(z[fin]) + 1e-9))).astype(np.uint8)
-    fig = np.concatenate([photo, sil, np.repeat(dep[:, :, None], 3, 2)], 1)
-    Image.fromarray(fig).save(os.path.join(a.out_dir, f'{a.tag}_lift_check.png'))
-    os.remove(tmp)
+    Image.fromarray(np.concatenate([photo, sil, np.repeat(dep[:, :, None], 3, 2)], 1)).save(os.path.join(a.out_dir, f'{tag}_lift_check.png'))
 
-    if not a.no_glb:
+    if a.texture and a.glb:
         import o_voxel
         glb = o_voxel.postprocess.to_glb(vertices=mesh.vertices, faces=mesh.faces, attr_volume=mesh.attrs, coords=mesh.coords,
                                          attr_layout=pipeline.pbr_attr_layout, grid_size=res, aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
                                          decimation_target=1000000, texture_size=2048, remesh=True, remesh_band=1, remesh_project=0,
                                          use_tqdm=False)
         glb.apply_transform(np.array([[-1, 0, 0, 0], [0, 0, -1, 0], [0, -1, 0, 0], [0, 0, 0, 1]], dtype=np.float64))
-        glb.export(os.path.join(a.out_dir, f'{a.tag}.glb'), extension_webp=True)
-    print(f'LIFT DONE {a.tag} [{time.time() - t0:.0f} s]', flush=True)
+        glb.export(os.path.join(a.out_dir, f'{tag}.glb'), extension_webp=False)   # PNG texture: MeshLab cannot read WebP
+    print(f'LIFT DONE {tag} [{time.time() - t0:.0f} s]', flush=True)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--images', nargs='+', required=True, help='our crops as RGBA, alpha = our object mask (models load ONCE for all)')
+    ap.add_argument('--tags', nargs='+', default=None, help='one per image (default: the file name without _rgba.png)')
+    ap.add_argument('--out_dir', required=True)
+    ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--steps', type=int, default=12, help='sampling steps of the sparse-structure and shape stages (Pixal3D default 12)')
+    ap.add_argument('--fov', type=float, default=-1.0, help='manual FOV (rad); default = MoGe-2 estimate')
+    ap.add_argument('--low_vram', action='store_true'); ap.add_argument('--resolution', type=int, default=-1)
+    ap.add_argument('--texture', action='store_true', help='also run the texture stage (default: geometry only, ~10 s less per image)')
+    ap.add_argument('--glb', action='store_true', help='with --texture: also write a textured GLB for viewing (~3 min per image)')
+    a = ap.parse_args()
+    tags = a.tags or [os.path.basename(p).replace('_rgba.png', '').replace('.png', '') for p in a.images]
+    assert len(tags) == len(a.images)
+    os.makedirs(a.out_dir, exist_ok=True)
+    t0 = time.time()
+    pipeline = inf.init_pipeline(inf.MODEL_PATH, low_vram=a.low_vram)
+    if not a.texture:
+        geometry_only(pipeline)
+    moge = inf.load_moge_model(device='cuda') if a.fov <= 0 else None
+    if moge is not None and a.low_vram:
+        moge.cpu(); torch.cuda.empty_cache()
+    print(f'[lift] models loaded in {time.time() - t0:.0f} s', flush=True)
+    for image, tag in zip(a.images, tags):
+        try:
+            lift_one(pipeline, moge, image, tag, a)
+        except Exception as e:   # one bad image must not stop the batch
+            print(f'LIFT FAILED {tag}: {e!r}', flush=True)
+    print(f'LIFT BATCH DONE {len(tags)} images [{time.time() - t0:.0f} s]', flush=True)
 
 
 if __name__ == '__main__':
