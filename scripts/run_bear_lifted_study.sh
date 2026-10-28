@@ -9,7 +9,7 @@ ID=${ID:?}; TAG=lvis$ID; R=data/densepose_lvis; SRC=$R/runs_runai_sub20/$TAG; L=
 OBJ=./demo/shic/shapes/bear.obj; NAME=shic_bear; CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
 P=$L/encoder_loraW_all_r4_phase2_lifted; S2=$SRC/encoder_loraW_all_r4_phase2; X=$R/runs_xseg_bears_runai_sub20/$TAG/perseg
 cp $L/multi_eval.json $O/study_eval.json
-for f in $L/backproj/${TAG}_*_backproj.png; do ln -sf $(realpath $f) $O/backproj/; done
+cp $L/backproj/${TAG}_*_backproj.png $O/backproj/
 # the one back-projection the 10-26 figures did not make: 2D stage 1
 if [ ! -f $O/backproj/${TAG}_2d_stage1_backproj.png ]; then
   B=$L/backproj; mkdir -p $B/soft_2d_stage1
