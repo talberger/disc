@@ -86,6 +86,10 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   on ordinary bears it is neutral-to-worse -> no general recipe yet; best overall = 2D per-seg. (4) visual: all our arms look alike per bear;
   lifted arms are smoother on crowded bears (159218, 212408); nobody fixes the hard bears (184143, 181825, 38529, 5459 > 55).
 - Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (section "20 דובים").
+- **TAL'S DECISION (2026-10-28): the next run = ALL bear instances, with the LVIS GT POLYGON as the object mask instead of SAM3 (results marked with *)**,
+  to isolate "does the lift help" from mask errors (113202: our SAM3 mask is ~the background; SHIC's number uses no mask at all, bbox protocol).
+  Fine segments still SAM 1, inside the GT mask. The 2D arms must use the same GT mask. Before it: go over the existing 24 results and filter
+  mask/GT problems (mask vs polygon IoU, GT points outside the mask, lift IoU, the >55 bears).
 
 ## 2026-10-25 (MAC) — MEETING WITH ITAI + TAL'S DECISIONS. **NOTHING IS RUNNING.**
 - **Tal: XSEG is ON HOLD** ("does not deliver yet"; 20-bear result in the entry below). **No email to Itai needed for now** (the REMIND TAL items below are void).
