@@ -14,7 +14,8 @@ from PIL import Image
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--run_dir', required=True); ap.add_argument('--tag', required=True)
-ap.add_argument('--sample', type=int, required=True, help='0-based index into the saved samples')
+ap.add_argument('--sample', default='auto', help="0-based index into the saved samples, or 'auto' (full run, 10-28): the sample whose mask "
+                "best matches (IoU) the merged amodal mask <tag>_amodal_mask.pth = the one most samples agree with")
 ap.add_argument('--content', choices=['all', 'hidden'], default='all')
 ap.add_argument('--out_png', required=True)
 a = ap.parse_args(); D, T = a.run_dir, a.tag
@@ -31,8 +32,12 @@ def to_crop(im, resample):
     return np.asarray(sub.resize((W, H), resample))
 
 
-rgb = to_crop(s['preds'][a.sample], Image.LANCZOS)
-am = to_crop((s['amodal'][a.sample] * 255).astype(np.uint8), Image.BILINEAR) > 127
+masks = [to_crop((m * 255).astype(np.uint8), Image.BILINEAR) > 127 for m in s['amodal']]
+if a.sample == 'auto':
+    ref = torch.load(f'{D}/{T}_amodal_mask.pth').numpy().astype(bool)
+    a.sample = int(np.argmax([(m & ref).sum() / (m | ref).sum() for m in masks]))
+a.sample = int(a.sample)
+rgb = to_crop(s['preds'][a.sample], Image.LANCZOS); am = masks[a.sample]
 hidden = am & ~vis; alpha = vis | am
 out = np.where((alpha if a.content == 'all' else hidden)[..., None], rgb, photo)
 Image.fromarray(np.dstack([out, (alpha * 255).astype(np.uint8)])).save(a.out_png)

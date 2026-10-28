@@ -25,6 +25,8 @@ if [ -n "${T2D:-}" ]; then TL=$O/${TAG}_mask_geo_table_lifted_seed0$RUNTAG.pth; 
 AMODAL=(); [ -f $SRC/${TAG}_amodal_mask.pth ] && AMODAL=(--geodesic_domain_mask_path $SRC/${TAG}_amodal_mask.pth)
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
 
+# LIFT=none (2026-10-28, full run): the 2D table itself is the teacher (2D per-seg / hybrid arms with the same code path); use RUNTAG to name it.
+if [ "$LIFT" = none ]; then TL=$T2D; fi
 [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2D --out_path $TL \
     --gt_path $SRC/${TAG}_gt.pth --check_png $O/${TAG}_lifted_vs_2d_rows.png
 DIAG=$(python -c "import json; print(json.load(open('${TL%.pth}_meta.json'))['true_diameter_2d'])")
