@@ -90,6 +90,10 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   to isolate "does the lift help" from mask errors (113202: our SAM3 mask is ~the background; SHIC's number uses no mask at all, bbox protocol).
   Fine segments still SAM 1, inside the GT mask. The 2D arms must use the same GT mask. Before it: go over the existing 24 results and filter
   mask/GT problems (mask vs polygon IoU, GT points outside the mask, lift IoU, the >55 bears).
+  Arms (Tal 10-28): lifted two-stage (stage 1 = its stage-A end) + lifted HYBRID + 2D two-stage + 2D per-seg, all on the GT mask.
+  SPACE: PVC 186G, 147G used, 40G free (10-28); ~3.4G per bear as now -> ~450G for 132. Tal is checking how to enlarge it.
+  CLEANUP per bear after eval + back-projection (Tal 10-28): delete encoder checkpoints (incl. stageA_end), the 2D/lifted geo tables and the
+  fuse16 features; KEEP every pred_f.pth (final AND alpha_stageA_end), eval json, back-projection PNGs, the lift .pth (~93M).
 
 ## 2026-10-25 (MAC) — MEETING WITH ITAI + TAL'S DECISIONS. **NOTHING IS RUNNING.**
 - **Tal: XSEG is ON HOLD** ("does not deliver yet"; 20-bear result in the entry below). **No email to Itai needed for now** (the REMIND TAL items below are void).
