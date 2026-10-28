@@ -61,7 +61,7 @@ def write_ply(path, V, F, vcol):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--lift_raw', required=True); ap.add_argument('--lift_remesh', required=True)
+    ap.add_argument('--lift_raw', required=True); ap.add_argument('--lift_remesh', default=None, help='optional: also the remeshed mesh')
     ap.add_argument('--img_path', required=True); ap.add_argument('--mask_path', required=True)
     ap.add_argument('--tag', required=True); ap.add_argument('--out_dir', required=True)
     ap.add_argument('--n_nb', type=int, default=8); ap.add_argument('--target_faces', type=int, default=200000)
@@ -72,10 +72,11 @@ def main():
     C, nbs = pick_points(mask, a.n_nb)
     if a.centre:
         C = tuple(a.centre)
+    variants = [('raw', a.lift_raw)] + ([('remesh', a.lift_remesh)] if a.lift_remesh else [])
     fig, ax = plt.subplots(2, 3, figsize=(20, 13), gridspec_kw={'width_ratios': [1, 1, 1.1]})
     lines = [f'{a.tag}: centre {C}', f'{"nb":3s} {"geo/euc raw":>12s} {"geo/euc remesh":>15s} {"snap raw":>9s} {"snap rm":>8s}']
     out = {}
-    for j, (name, p) in enumerate([('raw', a.lift_raw), ('remesh', a.lift_remesh)]):
+    for j, (name, p) in enumerate(variants):
         lift = torch.load(p, map_location='cpu'); cam, box = lift['camera'], lift['crop_box']
         V, F, big, ncomp, res, ext = probe(lift, a.target_faces, C, nbs); out[name] = res
         ax[j, 0].imshow(photo); ax[j, 0].axis('off')
@@ -93,12 +94,15 @@ def main():
         ax[j, 0].plot(C[1], C[0], 'w*', ms=20, mec='k')
         write_ply(os.path.join(a.out_dir, f'{a.tag}_probe_{name}.ply'), V, F, vcol)
     for k in range(len(nbs)):
-        r0, r1 = out['raw'][k], out['remesh'][k]
-        lines.append(f'{k + 1:<3d} {r0["geo"] / max(r0["euc"], 1e-9):12.2f} {r1["geo"] / max(r1["euc"], 1e-9):15.2f} {r0["snap"]:9.3f} {r1["snap"]:8.3f}')
+        r0 = out['raw'][k]; r1 = out.get('remesh', out['raw'])[k]; rm = 'remesh' in out
+        lines.append(f'{k + 1:<3d} {r0["geo"] / max(r0["euc"], 1e-9):12.2f} ' + (f'{r1["geo"] / max(r1["euc"], 1e-9):15.2f}' if rm else f'{"-":>15s}')
+                     + f' {r0["snap"]:9.3f} ' + (f'{r1["snap"]:8.3f}' if rm else f'{"-":>8s}'))
     lines += ['', 'geo/euc = path length / straight 3D distance (1 = straight;', '  a detour around a hole -> much larger)',
               'snap = how far the pixel\'s vertex moved to reach', '  the largest component (/ mesh extent)']
     for j in (0, 1):
         ax[j, 2].axis('off')
+    if not a.lift_remesh:
+        ax[1, 0].axis('off'); ax[1, 1].axis('off')
     ax[0, 2].text(0, 1, '\n'.join(lines), va='top', family='monospace', fontsize=12)
     for k, N in enumerate(nbs):
         ax[1, 2].plot([], [], 'o', c=np.array(COLS[k % len(COLS)]) / 255, label=f'neighbour {k + 1}')
