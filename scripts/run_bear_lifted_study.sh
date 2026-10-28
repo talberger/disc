@@ -28,7 +28,7 @@ for k in "${!MU[@]}"; do
       --output_path $O/ellipses_$k.png --title "$k" > $O/ellipses_$k.txt 2>&1 || echo "  $k ellipses FAILED"
 done
 python analysis/make_horse_lifted_study.py --src $SRC --tag $TAG --study_dir $O --table $L/${TAG}_mask_geo_table_lifted_seed0.pth \
-    --maps sam1=$SRC/${TAG}_fine_segments.pth --shic_results $R/eval_shic_bear/results.json \
+    --maps sam1=$SRC/${TAG}_fine_segments.pth --shic_results $R/eval_shic_bear/results.json --class_name bear \
     --rows_json '[["SAM 1 map, lifted teacher", "sam1", ["zs", "lifted_stage1", "lifted_stage2", "lifted_perseg", "lifted_hybrid"]],
                   ["SAM 1 map, 2D teacher", "sam1", ["zs", "2d_stage1", "2d_stage2", "2d_perseg", "none"]]]'
 echo "BEAR STUDY $TAG DONE"

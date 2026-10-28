@@ -47,7 +47,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--src', required=True); ap.add_argument('--tag', required=True); ap.add_argument('--study_dir', required=True)
     ap.add_argument('--table', required=True); ap.add_argument('--maps', nargs='+', required=True, help='name=path')
-    ap.add_argument('--shic_results', default=None)
+    ap.add_argument('--shic_results', default=None); ap.add_argument('--class_name', default='horse')
     ap.add_argument('--rows_json', default=None, help='[[title, map key, [4 arms: zs, stage 1, stage 2, per-seg]], ...] (default: the 56069 rows)')
     a = ap.parse_args()
     rows_def = json.loads(a.rows_json) if a.rows_json else ROWS
@@ -94,7 +94,7 @@ def main():
         rows.append(panels)
     Wd = max(sum(im.width + GAP for _, im in r) for r in rows)
     out = Image.new('RGB', (Wd, len(rows) * (H + PAD) + 34), 'white'); d = ImageDraw.Draw(out)
-    d.text((4, 8), f'horse {a.tag[4:]}: soft-snap error, mean (GT pt 1 / 2 / 3 = nose); lower = better. Black dots = the {len(centres)} centres.',
+    d.text((4, 8), f'{a.class_name} {a.tag[4:]}: soft-snap error, mean (GT pt 1 / 2 / 3' + (' = nose' if a.class_name == 'horse' else '') + '); lower = better. Black dots = the {len(centres)} centres.',
            fill='black', font=fs)
     for i, r in enumerate(rows):
         x, y = 0, 34 + i * (H + PAD)
@@ -117,7 +117,7 @@ def main():
             out.paste(i, (x, 0)); x += i.width + GAP
         out.save(f'{a.study_dir}/ellipses_study.png')
 
-    lines = [f'horse {a.tag[4:]}: soft-snap error per GT point (1 / 2 / 3 = nose) and mean; lower = better; 1 seed', '']
+    lines = [f'{a.class_name} {a.tag[4:]}: soft-snap error per GT point (1 / 2 / 3' + (' = nose' if a.class_name == 'horse' else '') + ') and mean; lower = better; 1 seed', '']
     if a.shic_results and os.path.exists(a.shic_results):
         s = json.load(open(a.shic_results))['bbox']['per_instance'].get(a.tag[4:])
         if s is not None:
