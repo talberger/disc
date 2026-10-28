@@ -58,7 +58,9 @@ def main():
         out = dict(L); out.update({'vertices': V2.cpu(), 'faces': F2.cpu(), 'pix_vertex': pv.cpu(), 'pix_depth': zb.cpu(), 'iou': iou,
                                    'coverage': coverage, 'remesh': {'from': os.path.abspath(p), 'resolution': res, 'band': a.band,
                                                                     'target': a.target, 'before': before, 'after': after}})
-        torch.save(out, os.path.join(a.out_dir, f'{tag}_lift.pth'))
+        # legacy format: the DISC env (torch 1.12) cannot read torch 2.6's zip records ("invalid header"), and it builds the tables
+        torch.save({k: (v.contiguous().clone() if torch.is_tensor(v) else v) for k, v in out.items()}, os.path.join(a.out_dir, f'{tag}_lift.pth'),
+                   _use_new_zipfile_serialization=False)
         if a.ply:
             write_ply(os.path.join(a.out_dir, f'{tag}_lift.ply'), V2, F2)
         print(f'REMESH {tag}: {before["components"]} -> {after["components"]} components, largest {before["largest"]:.3f} -> {after["largest"]:.3f}, '
