@@ -40,7 +40,15 @@ def main():
     ap.add_argument('--ids', nargs='+', required=True); ap.add_argument('--crowd', nargs='+', default=[])
     ap.add_argument('--out_dir', required=True); ap.add_argument('--src_sub', required=True); ap.add_argument('--src_crowd', required=True)
     ap.add_argument('--lifted_dir', default='data/densepose_lvis/lifted')
+    ap.add_argument('--panels', nargs='+', default=None, help='key=title ... (default: PANELS); other studies, e.g. the occlusion one (10-28)')
+    ap.add_argument('--arms', nargs='+', default=None, help='table columns (default: ARMS)')
+    ap.add_argument('--crowd_name', default='crowded bears')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
+    global ARMS, PANELS
+    if a.panels:
+        PANELS = [tuple(x.split('=', 1)) for x in a.panels]
+    if a.arms:
+        ARMS = a.arms
     shic = json.load(open('data/densepose_lvis/eval_shic_bear/results.json'))['bbox']['per_instance']
     res = {}
     for i in a.ids:
@@ -51,7 +59,7 @@ def main():
         if i in shic:
             r['SHIC'] = shic[i]
         res[i] = r
-    sets = [('20-bear subset', [i for i in a.ids if i not in a.crowd and i in res]), ('crowded bears', [i for i in a.crowd if i in res])]
+    sets = [('20-bear subset', [i for i in a.ids if i not in a.crowd and i in res]), (a.crowd_name, [i for i in a.crowd if i in res])]
     lines = ['soft-snap geodesic error (228-normalised), mean of the GT points; lower = better; 1 seed. lifted_* = Pixal3D-mesh teacher, 2d_* = before', '']
     for name, ids in sets:
         if not ids:
