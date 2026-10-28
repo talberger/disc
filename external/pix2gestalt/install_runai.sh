@@ -11,10 +11,10 @@ cp /workspace/disc/external/pix2gestalt/*.py $R/
 [ -x $R/venv/bin/python ] || /usr/local/bin/python -m venv $R/venv
 source $R/venv/bin/activate
 pip install -q --upgrade pip wheel
-pip install -q torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
-pip install -q "numpy<2" Pillow==9.5.0 opencv-python-headless==4.8.1.78 pytorch-lightning==1.4.2 omegaconf==2.1.1 einops==0.3.0 \
-  transformers==4.22.2 kornia==0.6 torchmetrics==0.6.0 diffusers==0.12.1 fire==0.4.0 segment-anything==1.0 imageio==2.9.0 \
-  albumentations==0.4.3 webdataset==0.2.5 test-tube ftfy regex tqdm scipy matplotlib "huggingface_hub<0.26" "setuptools<70"
+pip install -q "setuptools<70"
+# the pod venv's exact package set (env/requirements_pix2gestalt.txt, frozen 10-07; setup_env.sh's albumentations / webdataset / test-tube
+# were never needed for inference and albumentations 0.4.3 no longer builds)
+pip install -q -r /workspace/disc/env/requirements_pix2gestalt.txt
 cd $R/pix2gestalt
 [ -d taming-transformers ] || git clone -q --depth 1 https://github.com/CompVis/taming-transformers.git
 pip install -q -e taming-transformers/
