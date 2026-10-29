@@ -19,9 +19,10 @@ from plot_lifted_geodesic_paths import project, path_from_pred
 COLS = [(230, 25, 75), (60, 180, 75), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 240, 240), (240, 50, 230), (210, 245, 60)]
 
 
-def pick_points(mask, n):
-    """centre = the mask pixel deepest inside (distance transform max); neighbours on a ring at 1/3 of the mask's extent."""
-    dt = scipy.ndimage.distance_transform_edt(mask); c = np.unravel_index(np.argmax(dt), mask.shape)
+def pick_points(mask, n, c=None):
+    """centre = the mask pixel deepest inside (distance transform max) unless given; neighbours on a ring at 1/3 of the mask's extent."""
+    if c is None:
+        dt = scipy.ndimage.distance_transform_edt(mask); c = np.unravel_index(np.argmax(dt), mask.shape)
     rows, cols = np.nonzero(mask); rad = 0.33 * max(np.ptp(rows), np.ptp(cols))
     nbs = []
     for k in range(n):
@@ -70,9 +71,7 @@ def main():
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     photo = np.array(Image.open(a.img_path).convert('RGB')); mask = torch.load(a.mask_path).numpy().astype(bool)
-    C, nbs = pick_points(mask, a.n_nb)
-    if a.centre:
-        C = tuple(a.centre)
+    C, nbs = pick_points(mask, a.n_nb, tuple(a.centre) if a.centre else None)   # a given centre gets its own ring
     if a.neighbours:
         nbs = [tuple(a.neighbours[k:k + 2]) for k in range(0, len(a.neighbours), 2)]
     variants = [('raw', a.lift_raw)] + ([('remesh', a.lift_remesh)] if a.lift_remesh else [])
