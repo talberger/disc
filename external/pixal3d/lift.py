@@ -169,6 +169,7 @@ def main():
     ap.add_argument('--tags', nargs='+', default=None, help='one per image (default: the file name without _rgba.png)')
     ap.add_argument('--out_dir', required=True)
     ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--seeds', type=int, nargs='+', default=None, help='several seeds per image (tags get _s<seed>), models load once')
     ap.add_argument('--steps', type=int, default=12, help='sampling steps of the sparse-structure and shape stages (Pixal3D default 12)')
     ap.add_argument('--fov', type=float, default=-1.0, help='manual FOV (rad); default = MoGe-2 estimate')
     ap.add_argument('--low_vram', action='store_true'); ap.add_argument('--resolution', type=int, default=-1)
@@ -187,10 +188,12 @@ def main():
         moge.cpu(); torch.cuda.empty_cache()
     print(f'[lift] models loaded in {time.time() - t0:.0f} s', flush=True)
     for image, tag in zip(a.images, tags):
-        try:
-            lift_one(pipeline, moge, image, tag, a)
-        except Exception as e:   # one bad image must not stop the batch
-            print(f'LIFT FAILED {tag}: {e!r}', flush=True)
+        for s in a.seeds or [a.seed]:
+            t = f'{tag}_s{s}' if a.seeds else tag
+            try:
+                lift_one(pipeline, moge, image, t, argparse.Namespace(**{**vars(a), 'seed': s}))
+            except Exception as e:   # one bad image must not stop the batch
+                print(f'LIFT FAILED {t}: {e!r}', flush=True)
     print(f'LIFT BATCH DONE {len(tags)} images [{time.time() - t0:.0f} s]', flush=True)
 
 
