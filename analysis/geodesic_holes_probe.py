@@ -16,7 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from build_lifted_geodesic_table import decimate, edge_graph
 from plot_lifted_geodesic_paths import project, path_from_pred
 
-COLS = [(230, 25, 75), (60, 180, 75), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 240, 240), (240, 50, 230), (210, 245, 60)]
+COLS = [(230, 25, 75), (60, 180, 75), (0, 130, 200), (245, 130, 48), (145, 30, 180), (70, 240, 240), (240, 50, 230), (210, 245, 60),
+        (128, 0, 0), (0, 128, 128), (255, 225, 25), (0, 0, 128), (170, 110, 40), (128, 128, 0), (250, 190, 212), (0, 0, 0)]
 
 
 def pick_points(mask, n, c=None):
@@ -68,12 +69,15 @@ def main():
     ap.add_argument('--n_nb', type=int, default=8); ap.add_argument('--target_faces', type=int, default=200000)
     ap.add_argument('--centre', type=int, nargs=2, default=None)
     ap.add_argument('--neighbours', type=int, nargs='+', default=None, help='r c r c ... (default: a ring around the mask centre)')
+    ap.add_argument('--extra_neighbours', type=int, nargs='+', default=None, help='r c r c ... added to the ring')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     photo = np.array(Image.open(a.img_path).convert('RGB')); mask = torch.load(a.mask_path).numpy().astype(bool)
     C, nbs = pick_points(mask, a.n_nb, tuple(a.centre) if a.centre else None)   # a given centre gets its own ring
     if a.neighbours:
         nbs = [tuple(a.neighbours[k:k + 2]) for k in range(0, len(a.neighbours), 2)]
+    if a.extra_neighbours:
+        nbs += [tuple(a.extra_neighbours[k:k + 2]) for k in range(0, len(a.extra_neighbours), 2)]
     variants = [('raw', a.lift_raw)] + ([('remesh', a.lift_remesh)] if a.lift_remesh else [])
     fig, ax = plt.subplots(2, 3, figsize=(20, 13), gridspec_kw={'width_ratios': [1, 1, 1.1]})
     lines = [f'{a.tag}: centre {C}', f'{"nb":3s} {"geo/euc raw":>12s} {"geo/euc remesh":>15s} {"snap raw":>9s} {"snap rm":>8s}']
