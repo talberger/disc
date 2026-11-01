@@ -61,23 +61,24 @@ def main():
     zbuf = lift['pix_depth'].numpy(); ext = float(np.ptp(V, 0).max())
     snap = lambda rc: tuple(np.array([prow, pcol])[:, np.argmin((prow - rc[0]) ** 2 + (pcol - rc[1]) ** 2)])   # into the 2D graph
 
-    nr = len(reps)
-    fig = plt.figure(figsize=(26, 6.2 * (nr + 1)))
-    gs = fig.add_gridspec(nr + 1, 4, width_ratios=[1, 1, 1, 0.85])
+    nr, H, W = len(reps), *mask.shape
+    nt = 2 + len(a.panel); rh = 26 / 4 * H / W + 0.9                # row height (in) so a map fills its column
+    fig = plt.figure(figsize=(26, rh * (nr + 0.8) + 0.8))
+    gs = fig.add_gridspec(nr + 1, 4 * nt, height_ratios=[0.8] + [1] * nr, hspace=0.25, wspace=0.3, left=0.01, right=0.99, top=0.94, bottom=0.01)
     # top row: photo, panels, stage-1 ellipses
-    top = fig.add_gridspec(1, 2 + len(a.panel), left=0.02, right=0.98, top=1 - 0.2 / (nr + 1), bottom=1 - 0.95 / (nr + 1))
-    ax = fig.add_subplot(top[0, 0]); ax.imshow(photo); ax.axis('off'); ax.set_title('image', fontsize=14)
+    ax = fig.add_subplot(gs[0, 0:4]); ax.imshow(photo); ax.axis('off'); ax.set_title('image', fontsize=14)
     for k, (p, ti) in enumerate(a.panel):
-        ax = fig.add_subplot(top[0, 1 + k]); ax.imshow(Image.open(p)); ax.axis('off'); ax.set_title(ti.replace('\\n', '\n'), fontsize=14)
-    ax = fig.add_subplot(top[0, -1]); ax.imshow(photo); ax.imshow(np.where(mask, np.nan, 0.0), cmap='gray', alpha=0.5, vmin=0, vmax=1)
-    cy, cx = np.median(prow), np.median(pcol); R = 0.25 * max(mask.shape); th = np.radians(np.arange(0, 361, 3))
+        ax = fig.add_subplot(gs[0, 4 * (k + 1):4 * (k + 2)]); ax.imshow(Image.open(p)); ax.axis('off'); ax.set_title(ti.replace('\\n', '\n'), fontsize=14)
+    ax = fig.add_subplot(gs[0, 4 * (nt - 1):]); ax.imshow(photo); ax.imshow(np.where(mask, np.nan, 0.0), cmap='gray', alpha=0.5, vmin=0, vmax=1)
+    cy, cx = np.median(prow), np.median(pcol); R = 0.3 * min(mask.shape); th = np.radians(np.arange(0, 361, 3))
     ax.plot(cx + R * np.sin(th), cy + R * np.cos(th), 'w-', lw=1)
     ell = []
     for nm, p, col in (('2D', a.mu_2d, 'tab:blue'), ('lifted', a.mu_lifted, 'tab:red')):
         P = torch.load(p, map_location='cpu')['mu_aniso'][-1].tolist(); m = np.array([mu_dir(P, d) for d in np.degrees(th)])
         ax.plot(cx + R * m * np.sin(th), cy + R * m * np.cos(th), '-', c=col, lw=3, label=f'{nm}: vert {mu_dir(P, 0):.2f}, horiz {mu_dir(P, 90):.2f}')
         ell.append(f'{nm:7s} mu vert {mu_dir(P, 0):.3f} horiz {mu_dir(P, 90):.3f}')
-    ax.legend(loc='lower center', fontsize=11); ax.axis('off'); ax.set_title('stage-1 global ellipse (white: mu = 1)', fontsize=14)
+    ax.legend(loc='lower center', fontsize=10); ax.axis('off'); ax.set_title('stage-1 global ellipse\n(white: mu = 1)', fontsize=14)
+    cw = 4 * nt // 4                                                   # rep rows: 3 maps + the table, equal widths
 
     report = [f'{t}: diameter 2D {diam2:.1f} px, lifted {diam3:.4f}'] + ell
     for k, C in enumerate(reps):
@@ -87,12 +88,12 @@ def main():
         d2 = np.full(mask.shape, np.nan); d2[prow, pcol] = D2 / diam2
         d3 = np.full(mask.shape, np.nan); d3[prow, pcol] = D3[pix_v] / diam3
         diff = d3 - d2; far = np.unravel_index(np.nanargmax(np.abs(diff)), diff.shape)
-        axs = [fig.add_subplot(gs[k + 1, j]) for j in range(4)]
+        axs = [fig.add_subplot(gs[k + 1, j * cw:(j + 1) * cw]) for j in range(4)]
         axs[0].imshow(photo); axs[0].imshow(d2, cmap='turbo', vmin=0, vmax=1, alpha=0.75); axs[0].set_title(f'rep {k + 1}: 2D distance / diameter + paths', fontsize=13)
         axs[1].imshow(photo); axs[1].imshow(d3, cmap='turbo', vmin=0, vmax=1, alpha=0.75); axs[1].set_title(f'rep {k + 1}: lifted distance / diameter + paths', fontsize=13)
         axs[2].imshow(photo); im = axs[2].imshow(diff, cmap='RdBu_r', vmin=-0.4, vmax=0.4, alpha=0.85)
-        axs[2].set_title(f'lifted - 2D (red = farther in 3D); x = largest change {diff[far]:+.2f}', fontsize=13)
-        plt.colorbar(im, ax=axs[2], fraction=0.035)
+        axs[2].set_title(f'change lifted - 2D (red = farther in 3D)\nx = largest change {diff[far]:+.2f}', fontsize=13)
+        plt.colorbar(im, ax=axs[2], fraction=0.04, pad=0.01)
         lines = [f'rep {k + 1} {C}', f'{"nb":3s} {"2D":>6s} {"lifted":>7s} {"change":>7s}']
         for j, N in enumerate(nbs + [far]):
             col = np.array(COLS[j % len(COLS)]) / 255 if j < len(nbs) else 'k'
