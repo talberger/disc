@@ -69,6 +69,31 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## STATE AT CLOSE — 2026-11-01 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — LIFTED TEACHER: FULL 132-BEAR RUN = NO GAIN; THE LIFTED RUN'S OWN STAGE-1 ELLIPSE IS PART OF THE LOSS. **NOTHING IS RUNNING** (written 11-08; workspaces may have been stopped by Run:ai).
+Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections from "ריצה מלאה" on).
+- **Full run (10-28/29, `scripts/run_full_lifted.sh`), 132 bears, LVIS polygon mask, remeshed lifts:** mean SHIC 32.9 | ZS 39.2 | 2D stage1 35.1,
+  two-stage 34.3, per-seg 33.0 | lifted stage1 34.5, two-stage 34.3, hybrid 34.5. lifted - 2D two-stage +0.02 (SE 0.84), better on 63/132.
+  Summary: `data/densepose_lvis/lifted_full/summary/summary.txt`. The run's cleanup DELETED features + both geodesic tables (pred_f, evals,
+  back-projections, lifts kept); rebuild them with the worker's commands when needed (see `scripts/run_stage1_mu_test.sh`).
+- **Mesh holes (10-28/30):** 171627 with the SAM alpha -> holes in every seed (also with a cleaned SAM alpha); GT alpha and horse 56069 are fine.
+  Only input difference = the alpha (crop 430 vs 438, MoGe FOV 0.42 vs 0.45). Root cause unknown. On the good GT mesh the path detours vanish
+  but the lift still loses (28.8 vs 25.6) -> holes do NOT explain the loss. Full run: 26/132 meshes broken (boundary > 5% or largest < 95%).
+  `external/pixal3d/lift.py --seeds`, `analysis/geodesic_holes_probe.py`.
+- **Slack update to Itai sent 10-29** (horse 56069, 212408, 171627, 32412).
+- **Bear study (`scripts/run_bear_full_study.sh`):** 186446, 237843 (occluded, dropped), 109595 (everything bad, probably GT), 32412 (score
+  better, looks worse), 171627. Figures `lifted_full/lvis<i>/study/<i>_study.png`.
+- **Stage 1 only, 2D vs lifted teacher (`analysis/lifted_vs_2d_stage1_study.py`, `scripts/run_stage1_study.sh`):** per GT point, 8 neighbours,
+  paths, change map. Neighbours barely move (+-0.03-0.07); isolated "JUMPING PIXELS" near the rep in 2D but far on the mesh (186446: 0.058 ->
+  0.377), probably snapped to a vertex on another surface. Mean |change| 0.04 (186446, 109595) .. 0.16 (32412).
+- **Stage-1 ellipse swap (`scripts/run_stage1_mu_test.sh` + `run_stage1_mu_backproj.sh`), out `lifted_full/lvis<i>/stage1_mu/`:**
+  2D | lifted | lifted + 2D's frozen global ellipse | lifted + mu=1 | 2D + mu=1:
+  186446 17.3 | 33.4 | 23.2 | 39.4 | 35.9;  171627 25.6 | 30.4 | **20.3** | 50.8 | 51.2;  32412 93.9 | 45.8 | 42.1 | 38.8 | 90.4;
+  109595 98.5 | 101.7 | 102.1 | 115.7 | 117.9. -> the lifted run's learned ellipse is worse than 2D's; mu=1 hurts almost everywhere.
+  3 GT points + 1 seed each = noisy. Figure `lifted_full/summary/stage1_mu_backproj.png`.
+- **NEXT:** (1) why the lifted run learns a worse ellipse (suspect the jumping pixels); (2) "lifted + 2D ellipse" on all 132 bears;
+  (3) clean the pixel -> vertex mapping and re-test stage 1. Deferred: rename the Run:ai workloads (names in the 10-29 session).
+- PVC repo was behind with hand-copied files; synced 11-01 (`git pull` works again there).
+
 ## STATE AT CLOSE — 2026-10-26 (MAC driving Run:ai `tberger3-disc-gpu2`) — LIFTED TEACHER ON 20 BEARS + 4 CROWDED: NO GAIN ON AVERAGE. **NOTHING IS RUNNING; gpu2 STOPPED.**
 - `scripts/run_lifted_bears.sh` (STEP=rgba|train|eval|figs) + `analysis/make_lifted_multi.py`; SAM 1 map; Pixal3D lifts for 19 new bears (`--low_vram`, geometry only).
   Bad lifts (IoU < 0.45, split/occluded masks): 113202 0.44, 26883 0.18, 14974 0.40.
