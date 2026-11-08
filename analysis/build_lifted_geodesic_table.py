@@ -34,6 +34,36 @@ def decimate(V, F, target_faces):
     return np.asarray(m.vertices), np.asarray(m.triangles)
 
 
+def raycast_pix_point(lift, H, W):
+    """Per pixel of OUR crop: the first surface point a camera ray through the pixel centre hits (Tal, 2026-11-08). lift.py's pix_vertex is a
+    VERTEX splat: where no front vertex falls in a pixel but a back one does, the pixel sees through to the back (171627 rep 3 -> x3).
+    Returns points [H, W, 3] (world, nan where the ray misses), depth [H, W] (camera depth, inf where it misses)."""
+    import math, open3d as o3d
+    cam, (x0, y0, S) = lift['camera'], lift['crop_box']
+    f = (16.0 / math.tan(cam['camera_angle_x'] / 2)) * S / 32.0          # as plot_lifted_geodesic_paths.project
+    r, c = np.mgrid[0:H, 0:W].reshape(2, -1) + 0.5                        # splat floors, so pixel (r, c) covers [r, r + 1)
+    dc = np.stack([(c - S / 2 - x0) / f, -(r - S / 2 - y0) / f, -np.ones_like(c)], 1)
+    R = np.array([[1.0, 0, 0], [0, 0, -1], [0, 1, 0]]); o = np.array([0.0, -cam['distance'], 0])
+    dw = dc @ R.T; dw /= np.linalg.norm(dw, axis=1, keepdims=True)
+    sc = o3d.t.geometry.RaycastingScene()
+    sc.add_triangles(lift['vertices'].numpy().astype(np.float32), lift['faces'].numpy().astype(np.uint32))
+    th = sc.cast_rays(o3d.core.Tensor(np.c_[np.broadcast_to(o, dw.shape), dw].astype(np.float32)))['t_hit'].numpy().astype(np.float64)
+    P = o + th[:, None] * dw; P[~np.isfinite(th)] = np.nan
+    depth = th * (-dc[:, 2] / np.linalg.norm(dc, axis=1))                 # along the optical axis, as project()'s depth
+    return P.reshape(H, W, 3), depth.reshape(H, W)
+
+
+def pix_points(lift, H, W, mode):
+    """[H, W, 3] world point per pixel for the pixel -> vertex step, pixels without a surface point filled from the nearest one that has.
+    splat = lift['pix_vertex'] (the original), raycast = raycast_pix_point."""
+    if mode == 'splat':
+        pv = lift['pix_vertex'].numpy(); has = pv >= 0; P = lift['vertices'].numpy()[np.maximum(pv, 0)]
+    else:
+        P, _ = raycast_pix_point(lift, H, W); has = np.isfinite(P[..., 0])
+    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has, return_indices=True)
+    return P[ir, ic], has
+
+
 def edge_graph(V, F):
     e = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
     e = np.unique(np.sort(e, 1), axis=0)
@@ -48,6 +78,8 @@ def main():
     ap.add_argument('--target_faces', type=int, default=200000, help='decimated mesh size (~100 k vertices)')
     ap.add_argument('--gt_path', default=None, help='for the check figure: rows from the centres nearest the GT points')
     ap.add_argument('--check_png', default=None)
+    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='splat',
+                    help="pixel -> surface point: lift.py's vertex splat (original; can see through to the back) or a ray cast on the faces")
     a = ap.parse_args()
     t0 = time.time()
     lift = torch.load(a.lift_path, map_location='cpu')
@@ -56,14 +88,12 @@ def main():
     p2n = t2['pixel_to_node'].numpy() if torch.is_tensor(t2['pixel_to_node']) else np.asarray(t2['pixel_to_node'])
     coords = t2['coords'].numpy() if torch.is_tensor(t2['coords']) else np.asarray(t2['coords'])
     H, W = safe.shape
-    pv = lift['pix_vertex'].numpy()
-    assert pv.shape == (H, W), (pv.shape, safe.shape)
+    assert lift['pix_vertex'].shape == (H, W), (lift['pix_vertex'].shape, safe.shape)
 
-    # every safe-mask pixel -> a lifted vertex (pixels with no surface point borrow the nearest pixel that has one)
-    has = pv >= 0
-    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has, return_indices=True)
-    pv_full = pv[ir, ic]
-    print(f'[lifted] mask pixels {int(safe.sum())}, without a surface point {int((safe & ~has).sum())} (filled from the nearest one)', flush=True)
+    # every safe-mask pixel -> a surface point (pixels with no surface point borrow the nearest pixel that has one)
+    PP, has = pix_points(lift, H, W, a.pix_map)
+    print(f'[lifted] pix_map {a.pix_map}: mask pixels {int(safe.sum())}, without a surface point {int((safe & ~has).sum())} '
+          f'(filled from the nearest one)', flush=True)
 
     V0, F0 = lift['vertices'].numpy(), lift['faces'].numpy()
     V, F = decimate(V0, F0, a.target_faces)
@@ -79,9 +109,9 @@ def main():
     nodes = p2n[rows, cols]
     assert (nodes >= 0).all() and len(np.unique(nodes)) == len(nodes)
     pix_v = np.empty(len(rows), np.int64)
-    _, nn = tree.query(V0[pv_full[rows, cols]]); pix_v[nodes] = keep[nn]          # column n -> decimated vertex
-    _, cn = tree.query(V0[pv_full[coords[:, 0], coords[:, 1]]]); cen_v = keep[cn]  # centre i -> decimated vertex
-    snap = np.linalg.norm(V0[pv_full[rows, cols]] - V[pix_v[nodes]], axis=1)
+    _, nn = tree.query(PP[rows, cols]); pix_v[nodes] = keep[nn]                    # column n -> decimated vertex
+    _, cn = tree.query(PP[coords[:, 0], coords[:, 1]]); cen_v = keep[cn]           # centre i -> decimated vertex
+    snap = np.linalg.norm(PP[rows, cols] - V[pix_v[nodes]], axis=1)
     print(f'[lifted] pixel -> decimated vertex snap distance: median {np.median(snap):.4f}, max {snap.max():.4f} (mesh extent '
           f'{np.ptp(V, 0).max():.3f})', flush=True)
 
@@ -104,7 +134,7 @@ def main():
     out = dict(t2)
     out.update({'table': table, 'diagonal': float(table.max()), 'true_diameter_2d': diam,
                 'lifted': {'lift_path': os.path.abspath(a.lift_path), 'table_2d': os.path.abspath(a.table_2d),
-                           'target_faces': a.target_faces, 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
+                           'target_faces': a.target_faces, 'pix_map': a.pix_map, 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
                            'graph': 'edge-graph Dijkstra on the decimated lifted mesh'}})
     torch.save(out, a.out_path)
     meta = os.path.splitext(a.out_path)[0] + '_meta.json'
