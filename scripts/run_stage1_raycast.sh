@@ -21,6 +21,9 @@ t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2";
 for i in ${IDS:?}; do
   d=$R/runs_full_poly/lvis$i; L=$R/lifted_full/lvis$i; O=$L/stage1_ray; B=$L/backproj; mkdir -p $O $B; tag=lvis$i
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
+  # split-mask bears: the full run's amodal mask is the geodesic domain of the 2D table AND of the training (as run_lvis_worker.py /
+  # run_lifted_instance.sh); without it the training stops at "segment 1 has no out-of-segment pixel" (7107, 206034; 2026-11-09)
+  AMODAL=(); [ -f $d/${tag}_amodal_mask.pth ] && AMODAL=(--geodesic_domain_mask_path $d/${tag}_amodal_mask.pth)
   done_all=1; for a in $ARMS; do [ -f $B/lvis${i}_${a%%=*}_backproj.png ] || done_all=0; done
   [ $done_all = 1 ] && [ -f $O/eval_all.json ] && { echo "lvis$i: done, skipped"; continue; }
   if ! mkdir $O/.lock 2>/dev/null; then
@@ -32,7 +35,7 @@ for i in ${IDS:?}; do
   [ -f $F ] || t python analysis/extract_dino_sd_features.py --img_path $d/$tag.png --save_dir $d --output_path $F --sd_frame square_pad --cpu_postprocess > $O/features.log 2>&1
   [ -f $O/meta_2d_fullrun.json ] || cp $d/${tag}_mask_geo_table_2d_seed0_meta.json $O/meta_2d_fullrun.json
   [ -f $T2 ] || t python analysis/build_geodesic_tables.py --obj_path $OBJ --name $NAME --skip_3d --object_mask_path $d/${tag}_mask.pth \
-      --fine_seg_path $d/${tag}_fine_segments.pth --num_center_pixels 2048 --seed 0 --true_diameter --out_dir $d > $O/table2d.log 2>&1
+      --fine_seg_path $d/${tag}_fine_segments.pth ${AMODAL[@]+"${AMODAL[@]}"} --num_center_pixels 2048 --seed 0 --true_diameter --out_dir $d > $O/table2d.log 2>&1
   NSEG=$(python -c "import torch; print(int((torch.unique(torch.as_tensor(torch.load('$d/${tag}_fine_segments.pth'))) > 0).sum()))")
   if [ $NSEG -eq 1 ]; then NB=(--num_neighbors_in_segment 16 --num_neighbors_out_segment 0 --switch_nin 16 --switch_nout 0)
   else NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --switch_nin 16 --switch_nout 0); fi
@@ -59,7 +62,7 @@ for i in ${IDS:?}; do
           --geo_table_3d_path $GEO3D --geo_table_2d_path $TL \
           --mu_mode learned --mu_scope global_then_segment_aniso --mu_lr 5e-2 --mu_fit_space abs "${NB[@]}" --mu_switch_step 150 --num_iters 149 \
           --cyc_weight 1.676e-05 --cyc_v2 --cyc_temperature 0.05 --cyc_return_all_pixels --cyc_return_stride 3 \
-          --lora_w_rank 4 --lora_w_layers all --lora_w_lr 1e-3 --no_step_checkpoints --out_dir $P2 > $P2.train.log 2>&1
+          --lora_w_rank 4 --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints --out_dir $P2 > $P2.train.log 2>&1
       python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
           --lora_checkpoint $P2/encoder_checkpoint.pth --alphas 0.5 --out_dir $P2/alpha > /dev/null
       rm -f $P2/encoder_checkpoint*.pth $TL
