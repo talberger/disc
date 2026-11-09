@@ -59,7 +59,7 @@ lift)
   fi
   echo "LIFT ALL DONE" ;;
 train)   # only bears whose amodal lift exists (run again after STEP=lift finishes for the rest)
-  READY=$(for i in $IDS; do [ -e $G/bear_lvis${i}_amodal_lift.pth ] && echo $i; done); echo "train: $(echo $READY | wc -w) bears ready"
+  READY=$(for i in $IDS; do [ -e $G/bear_lvis${i}_amodal_lift.pth ] && echo $i; done; true); echo "train: $(echo $READY | wc -w) bears ready"
   IDS="$READY" ARMS="lifted_ray=full lifted_amodal=amodal" bash /workspace/disc/scripts/run_stage1_raycast.sh
   echo "TRAIN ALL DONE" ;;
 esac
