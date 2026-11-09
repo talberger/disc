@@ -16,7 +16,7 @@ import numpy as np, torch, scipy.ndimage, scipy.sparse.csgraph
 from scipy.spatial import cKDTree
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_lifted_geodesic_table import decimate, edge_graph
+from build_lifted_geodesic_table import decimate, edge_graph, pix_points
 from plot_lifted_geodesic_paths import grid_graph, path_from_pred, project
 from plot_mu_ellipses import mu_dir
 from geodesic_holes_probe import COLS
@@ -41,6 +41,7 @@ def main():
     ap.add_argument('--panel', nargs=2, action='append', default=[], metavar=('PNG', 'TITLE'))
     ap.add_argument('--out_dir', required=True); ap.add_argument('--n_nb', type=int, default=8)
     ap.add_argument('--ring_frac', type=float, default=0.25); ap.add_argument('--target_faces', type=int, default=200000)
+    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast', help='as build_lifted_geodesic_table.py')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     S = a.src_dir; t = a.tag
@@ -52,12 +53,11 @@ def main():
     # 2D graph (8-connected pixels in the mask) and the lifted graph + pixel -> vertex, as the two table builders
     G2, idx, prow, pcol = grid_graph(mask)
     lift = torch.load(a.lift_path, map_location='cpu'); cam, box = lift['camera'], lift['crop_box']
-    pv = lift['pix_vertex'].numpy(); has = pv >= 0
-    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has, return_indices=True); pv = pv[ir, ic]
-    V0 = lift['vertices'].numpy(); V, F = decimate(V0, lift['faces'].numpy(), a.target_faces)
+    PP, _ = pix_points(lift, *mask.shape, a.pix_map)
+    V, F = decimate(lift['vertices'].numpy(), lift['faces'].numpy(), a.target_faces)
     G3 = edge_graph(V, F); _, lab = scipy.sparse.csgraph.connected_components(G3, directed=False)
     keep = np.nonzero(lab == np.bincount(lab).argmax())[0]; tree = cKDTree(V[keep])
-    pix_v = keep[tree.query(V0[pv[prow, pcol]])[1]]                       # graph-2D node j (= pixel prow[j], pcol[j]) -> vertex
+    pix_v = keep[tree.query(PP[prow, pcol])[1]]                       # graph-2D node j (= pixel prow[j], pcol[j]) -> vertex
     zbuf = lift['pix_depth'].numpy(); ext = float(np.ptp(V, 0).max())
     snap = lambda rc: tuple(np.array([prow, pcol])[:, np.argmin((prow - rc[0]) ** 2 + (pcol - rc[1]) ** 2)])   # into the 2D graph
 

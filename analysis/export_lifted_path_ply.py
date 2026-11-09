@@ -14,7 +14,7 @@ import open3d as o3d
 from scipy.spatial import cKDTree
 import matplotlib.cm
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_lifted_geodesic_table import decimate, edge_graph
+from build_lifted_geodesic_table import decimate, edge_graph, pix_points
 from plot_lifted_geodesic_paths import path_from_pred
 
 
@@ -31,15 +31,15 @@ def main():
     ap.add_argument('--lifted_meta', required=True); ap.add_argument('--a', type=int, nargs=2, required=True)
     ap.add_argument('--b', type=int, nargs=2, required=True); ap.add_argument('--out_dir', required=True)
     ap.add_argument('--target_faces', type=int, default=200000)
+    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast', help='as build_lifted_geodesic_table.py')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True); t = a.tag
     diam3 = json.load(open(a.lifted_meta))['true_diameter_2d']
     lift = torch.load(a.lift_path, map_location='cpu')
-    pv = lift['pix_vertex'].numpy()
-    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~(pv >= 0), return_indices=True); pv = pv[ir, ic]
-    V0 = lift['vertices'].numpy(); V, F = decimate(V0, lift['faces'].numpy(), a.target_faces)
+    PP, _ = pix_points(lift, *lift['pix_vertex'].shape, a.pix_map)
+    V, F = decimate(lift['vertices'].numpy(), lift['faces'].numpy(), a.target_faces)
     G3 = edge_graph(V, F); _, lab = scipy.sparse.csgraph.connected_components(G3, directed=False)
     keep = np.nonzero(lab == np.bincount(lab).argmax())[0]; tree = cKDTree(V[keep])
-    va, vb = (int(keep[tree.query(V0[pv[r, c]])[1]]) for r, c in (a.a, a.b))
+    va, vb = (int(keep[tree.query(PP[r, c])[1]]) for r, c in (a.a, a.b))
     D, P = scipy.sparse.csgraph.dijkstra(G3, directed=False, indices=va, return_predecessors=True)
     path = path_from_pred(P, vb); ext = float(np.ptp(V, 0).max())
     d = D / diam3; col = matplotlib.cm.turbo(np.clip(np.nan_to_num(d, posinf=1.0), 0, 1))[:, :3]

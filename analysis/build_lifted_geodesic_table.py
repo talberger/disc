@@ -78,8 +78,9 @@ def main():
     ap.add_argument('--target_faces', type=int, default=200000, help='decimated mesh size (~100 k vertices)')
     ap.add_argument('--gt_path', default=None, help='for the check figure: rows from the centres nearest the GT points')
     ap.add_argument('--check_png', default=None)
-    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='splat',
-                    help="pixel -> surface point: lift.py's vertex splat (original; can see through to the back) or a ray cast on the faces")
+    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast',
+                    help="pixel -> surface point: a ray cast on the faces (default since 2026-11-08) or lift.py's vertex splat (the full run "
+                         "of 2026-10-27; can see through to the back)")
     a = ap.parse_args()
     t0 = time.time()
     lift = torch.load(a.lift_path, map_location='cpu')
