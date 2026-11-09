@@ -57,11 +57,22 @@ def local_pipeline():
     return dst
 
 
+def shape_only(pipeline, img, seed):
+    """pipeline.run('1024_cascade') without the texture stage (run() asserts the texture models): same calls, shape decode only."""
+    image = pipeline.preprocess_image(img); torch.manual_seed(seed)
+    cond_512, cond_1024 = pipeline.get_cond([image], 512), pipeline.get_cond([image], 1024)
+    coords = pipeline.sample_sparse_structure(cond_512, 32, 1, {})
+    shape_slat, res = pipeline.sample_shape_slat_cascade(cond_512, cond_1024, pipeline.models['shape_slat_flow_model_512'],
+                                                         pipeline.models['shape_slat_flow_model_1024'], 512, 1024, coords, {}, 49152)
+    meshes, _ = pipeline.decode_shape_slat(shape_slat, res)
+    return meshes[0]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--images', nargs='+', required=True); ap.add_argument('--tags', nargs='+', default=None)
     ap.add_argument('--out_dir', required=True); ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--pipeline_type', default='1024_cascade'); ap.add_argument('--faces', type=int, default=1000000)
+    ap.add_argument('--faces', type=int, default=1000000)
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     tags = a.tags or [os.path.basename(p).replace('_rgba.png', '').replace('.png', '') for p in a.images]
     t0 = time.time()
@@ -69,7 +80,7 @@ def main():
     print(f'[trellis2] loaded in {time.time() - t0:.0f} s', flush=True)
     for p, tag in zip(a.images, tags):
         t = time.time(); img = Image.open(p); assert img.mode == 'RGBA', f'{p}: need RGBA'
-        mesh = pipeline.run(img, seed=a.seed, pipeline_type=a.pipeline_type)[0]
+        mesh = shape_only(pipeline, img, a.seed)
         mesh.fill_holes(); mesh.simplify(a.faces)
         V, F = mesh.vertices.float().cpu().numpy(), mesh.faces.long().cpu().numpy()
         out = os.path.join(a.out_dir, f'{tag}_trellis2.ply'); write_ply(out, V, F)
