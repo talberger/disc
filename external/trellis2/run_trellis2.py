@@ -6,8 +6,9 @@ ungated mirror Pixal3D already uses, background removal stubbed (the alpha of ou
 Run in the Pixal3D env (pixal3d-env2):
   cd /workspace/trellis2_repo && source /workspace/envs/pixal3d/bin/activate
   HF_HOME=/workspace/.cache/huggingface python /workspace/disc/external/trellis2/run_trellis2.py --images <rgba.png> ... --out_dir <dir>
-Out per image: <out_dir>/<tag>_trellis2.ply (fill_holes, decimated to --faces)."""
+Out per image: <out_dir>/<tag>_trellis2_<res>.ply (fill_holes, decimated to --faces)."""
 import argparse, json, os, sys, time
+os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
 import numpy as np, torch
 from PIL import Image
 from huggingface_hub import hf_hub_download, snapshot_download
@@ -57,13 +58,17 @@ def local_pipeline():
     return dst
 
 
-def shape_only(pipeline, img, seed):
-    """pipeline.run('1024_cascade') without the texture stage (run() asserts the texture models): same calls, shape decode only."""
+def shape_only(pipeline, img, seed, res):
+    """pipeline.run('1024_cascade' / '512') without the texture stage (run() asserts the texture models): same calls, shape decode only.
+    512 fits a 24 GB A5000 for a full 3D object; the 1024 decode ran out of memory on TRELLIS.2's own example."""
     image = pipeline.preprocess_image(img); torch.manual_seed(seed)
-    cond_512, cond_1024 = pipeline.get_cond([image], 512), pipeline.get_cond([image], 1024)
+    cond_512 = pipeline.get_cond([image], 512)
     coords = pipeline.sample_sparse_structure(cond_512, 32, 1, {})
-    shape_slat, res = pipeline.sample_shape_slat_cascade(cond_512, cond_1024, pipeline.models['shape_slat_flow_model_512'],
-                                                         pipeline.models['shape_slat_flow_model_1024'], 512, 1024, coords, {}, 49152)
+    if res == 512:
+        shape_slat = pipeline.sample_shape_slat(cond_512, pipeline.models['shape_slat_flow_model_512'], coords, {})
+    else:
+        shape_slat, res = pipeline.sample_shape_slat_cascade(cond_512, pipeline.get_cond([image], 1024), pipeline.models['shape_slat_flow_model_512'],
+                                                             pipeline.models['shape_slat_flow_model_1024'], 512, 1024, coords, {}, 49152)
     meshes, _ = pipeline.decode_shape_slat(shape_slat, res)
     return meshes[0]
 
@@ -73,6 +78,7 @@ def main():
     ap.add_argument('--images', nargs='+', required=True); ap.add_argument('--tags', nargs='+', default=None)
     ap.add_argument('--out_dir', required=True); ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--faces', type=int, default=1000000)
+    ap.add_argument('--res', type=int, choices=[512, 1024], default=512)
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     tags = a.tags or [os.path.basename(p).replace('_rgba.png', '').replace('.png', '') for p in a.images]
     t0 = time.time()
@@ -80,10 +86,10 @@ def main():
     print(f'[trellis2] loaded in {time.time() - t0:.0f} s', flush=True)
     for p, tag in zip(a.images, tags):
         t = time.time(); img = Image.open(p); assert img.mode == 'RGBA', f'{p}: need RGBA'
-        mesh = shape_only(pipeline, img, a.seed)
+        mesh = shape_only(pipeline, img, a.seed, a.res); torch.cuda.empty_cache()
         mesh.fill_holes(); mesh.simplify(a.faces)
         V, F = mesh.vertices.float().cpu().numpy(), mesh.faces.long().cpu().numpy()
-        out = os.path.join(a.out_dir, f'{tag}_trellis2.ply'); write_ply(out, V, F)
+        out = os.path.join(a.out_dir, f'{tag}_trellis2_{a.res}.ply'); write_ply(out, V, F)
         print(f'[trellis2] {tag}: {len(V)} vertices, {len(F)} faces -> {out} [{time.time() - t:.0f} s]', flush=True)
     print('TRELLIS2 DONE', flush=True)
 
