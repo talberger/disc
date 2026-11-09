@@ -8,6 +8,7 @@
 #   STEP=lift   (pixal3d env, pixal3d-env2) lift.py on every RGBA without a lift (models load once) -> remesh_lift.py -> the raw lifts deleted
 #   STEP=train  (disc env) run_stage1_raycast.sh ARMS="lifted_ray=full lifted_amodal=amodal", then the summary
 # Every step is resumable (skips what exists). Ids = lifted_full/summary/summary.txt (the 132 bears of the full run), or IDS="...".
+# STEP=train with REVERSE=1 = an extra worker from the end of the list (bears are locked per worker).
 # Usage: STEP=amodal bash scripts/run_amodal_lift_all.sh
 set -euo pipefail
 STEP=${STEP:?STEP=amodal|lift|train}
@@ -60,6 +61,7 @@ lift)
   echo "LIFT ALL DONE" ;;
 train)   # only bears whose amodal lift exists (run again after STEP=lift finishes for the rest)
   READY=$(for i in $IDS; do [ -e $G/bear_lvis${i}_amodal_lift.pth ] && echo $i; done; true); echo "train: $(echo $READY | wc -w) bears ready"
+  [ "${REVERSE:-0}" = 1 ] && READY=$(echo $READY | tr ' ' '\n' | tac)       # a second worker from the other end
   IDS="$READY" ARMS="lifted_ray=full lifted_amodal=amodal" bash /workspace/disc/scripts/run_stage1_raycast.sh
   echo "TRAIN ALL DONE" ;;
 esac

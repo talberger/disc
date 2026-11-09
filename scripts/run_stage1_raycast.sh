@@ -8,7 +8,8 @@
 # 2026-11-09 (amodal, all bears): ARMS="lifted_ray=full lifted_amodal=amodal". A lift that is a SYMLINK to an earlier arm's lift (bears whose
 # full-run lift already came from the amodal content) is not trained again: the arm points at that arm's run.
 # Features and the 2D table were deleted by the full-run cleanup: rebuilt once per bear (same commands, seed 0) and deleted again after.
-# Resumable: a bear with eval_all.json and every arm's back-projection is skipped.
+# Resumable: a bear with eval_all.json and every arm's back-projection is skipped. Several workers may run at once (2026-11-09): a bear is
+# locked by its worker (stage1_ray/.lock, taken over when older than 60 min = a worker that died with the workspace).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
@@ -22,6 +23,11 @@ for i in ${IDS:?}; do
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
   done_all=1; for a in $ARMS; do [ -f $B/lvis${i}_${a%%=*}_backproj.png ] || done_all=0; done
   [ $done_all = 1 ] && [ -f $O/eval_all.json ] && { echo "lvis$i: done, skipped"; continue; }
+  if ! mkdir $O/.lock 2>/dev/null; then
+    [ -n "$(find $O/.lock -maxdepth 0 -mmin +60)" ] || { echo "lvis$i: locked by another worker, skipped"; continue; }
+    echo "lvis$i: stale lock taken over"
+  fi
+  trap "rmdir $O/.lock 2>/dev/null" EXIT
   echo "##### $tag #####"
   [ -f $F ] || t python analysis/extract_dino_sd_features.py --img_path $d/$tag.png --save_dir $d --output_path $F --sd_frame square_pad --cpu_postprocess > $O/features.log 2>&1
   [ -f $O/meta_2d_fullrun.json ] || cp $d/${tag}_mask_geo_table_2d_seed0_meta.json $O/meta_2d_fullrun.json
@@ -80,5 +86,6 @@ import json; r = json.load(open('$O/eval_all.json'))['arms']
 print('STAGE1 RAY $i: ' + ' | '.join('%s %.1f' % (a, v['soft_snap']['all']['mean']) for a, v in r.items()))"
   cp $O/meta_2d_fullrun.json $d/${tag}_mask_geo_table_2d_seed0_meta.json
   rm -f $T2 $F
+  rmdir $O/.lock; trap - EXIT
 done
 echo "ALL STAGE1 RAY DONE"
