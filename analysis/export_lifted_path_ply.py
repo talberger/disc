@@ -31,11 +31,10 @@ def main():
     ap.add_argument('--lifted_meta', required=True); ap.add_argument('--a', type=int, nargs=2, required=True)
     ap.add_argument('--b', type=int, nargs=2, required=True); ap.add_argument('--out_dir', required=True)
     ap.add_argument('--target_faces', type=int, default=200000)
-    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast', help='as build_lifted_geodesic_table.py')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True); t = a.tag
     diam3 = json.load(open(a.lifted_meta))['true_diameter_2d']
     lift = torch.load(a.lift_path, map_location='cpu')
-    PP, _ = pix_points(lift, *lift['pix_vertex'].shape, a.pix_map)
+    PP, _ = pix_points(lift, *lift['pix_vertex'].shape)
     V, F = decimate(lift['vertices'].numpy(), lift['faces'].numpy(), a.target_faces)
     G3 = edge_graph(V, F); _, lab = scipy.sparse.csgraph.connected_components(G3, directed=False)
     keep = np.nonzero(lab == np.bincount(lab).argmax())[0]; tree = cKDTree(V[keep])

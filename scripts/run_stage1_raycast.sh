@@ -1,7 +1,7 @@
 #!/bin/bash
 # Stage 1 with the RAY-CAST pixel -> mesh mapping (Tal, 2026-11-08): lift.py's vertex splat maps some front pixels to the bear's back
-# (171627 rep 3 -> x3, analysis/lifted_pixel_vertex_check.py); build_lifted_geodesic_table.py --pix_map raycast fixes that.
-# Per bear: the lifted table rebuilt with --pix_map raycast, one stage-1 run (149 steps, learned global ellipse = the full run's stage A,
+# (171627 rep 3 -> x3, analysis/lifted_pixel_vertex_check.py); build_lifted_geodesic_table.py now ray casts instead.
+# Per bear: the lifted table rebuilt (ray cast), one stage-1 run (149 steps, learned global ellipse = the full run's stage A,
 # train seed 0), scored with zs / 2d_stage1 / lifted_stage1 (splat) of the full run -> lifted_full/lvis<i>/stage1_ray/eval.json,
 # and its back-projection -> lifted_full/lvis<i>/backproj/lvis<i>_lifted_ray_backproj.png.
 # Features and the 2D table were deleted by the full-run cleanup: rebuilt (same commands, seed 0) and deleted again after (PVC ~90% full).
@@ -21,7 +21,7 @@ for i in ${IDS:?}; do
   cp $d/${tag}_mask_geo_table_2d_seed0_meta.json $O/meta_2d_fullrun.json
   [ -f $T2 ] || t python analysis/build_geodesic_tables.py --obj_path $OBJ --name $NAME --skip_3d --object_mask_path $d/${tag}_mask.pth \
       --fine_seg_path $d/${tag}_fine_segments.pth --num_center_pixels 2048 --seed 0 --true_diameter --out_dir $d > $O/table2d.log 2>&1
-  [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $G/bear_${tag}_full_lift.pth --table_2d $T2 --out_path $TL --pix_map raycast > $O/tablelifted.log 2>&1
+  [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $G/bear_${tag}_full_lift.pth --table_2d $T2 --out_path $TL > $O/tablelifted.log 2>&1
   DL=$(python -c "import json; print(json.load(open('${TL%.pth}_meta.json'))['true_diameter_2d'])")
   echo "lifted diameter: splat $(python -c "import json; print(json.load(open('$L/${tag}_mask_geo_table_lifted_seed0_full_meta.json'))['true_diameter_2d'])"), ray $DL"
   NSEG=$(python -c "import torch; print(int((torch.unique(torch.as_tensor(torch.load('$d/${tag}_fine_segments.pth'))) > 0).sum()))")

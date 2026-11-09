@@ -10,7 +10,7 @@ Usage (disc env, needs open3d):
       --lifted_meta <..._lifted_seed0_full_meta.json> --out_dir <dir>
 """
 import argparse, json, os, sys
-import numpy as np, torch, scipy.sparse.csgraph
+import numpy as np, torch, scipy.ndimage, scipy.sparse.csgraph
 from scipy.spatial import cKDTree
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -33,7 +33,9 @@ def main():
 
     G2, idx, prow, pcol = grid_graph(mask)
     lift = torch.load(a.lift_path, map_location='cpu'); cam, box = lift['camera'], lift['crop_box']; H, W = mask.shape
-    PS, has_s = pix_points(lift, H, W, 'splat'); PR, has_r = pix_points(lift, H, W, 'raycast')
+    pv = lift['pix_vertex'].numpy(); has_s = pv >= 0                     # lift.py's splat, inlined (the builder no longer has it)
+    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has_s, return_indices=True); PS = lift['vertices'].numpy()[pv[ir, ic]]
+    PR, has_r = pix_points(lift, H, W)
     _, zray = raycast_pix_point(lift, H, W)
     V, F = decimate(lift['vertices'].numpy(), lift['faces'].numpy(), a.target_faces)
     G3 = edge_graph(V, F); _, lab = scipy.sparse.csgraph.connected_components(G3, directed=False)

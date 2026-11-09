@@ -6,7 +6,7 @@ its distances, so the file is a drop-in --geo_table_2d_path: coords / pixel_to_n
 unchanged and train_relational_loss.py's consistency checks pass as before. Feed the printed lifted diameter as --geo_diag_2d.
 
 Steps: lifted mesh (Pixal3D: ~2-3 M vertices) -> quadric decimation to --target_faces -> largest connected component -> every mask pixel gets
-the decimated vertex nearest (in 3D) to its front-most lifted vertex (pixels with no surface point: the nearest pixel that has one) ->
+the decimated vertex nearest (in 3D) to the first surface point a camera ray through it hits (rays that miss: the nearest pixel that has one) ->
 Dijkstra on the decimated mesh's EDGE graph (edge length = Euclidean; overestimates the true surface geodesic by a roughly uniform factor,
 which the diameter normalisation cancels to first order) from every centre's vertex -> table[i, n] = d(centre_i, pixel n).
 Diameter = double sweep over the vertices of the mask pixels (visible-to-visible, like true_diameter_2d).
@@ -53,13 +53,9 @@ def raycast_pix_point(lift, H, W):
     return P.reshape(H, W, 3), depth.reshape(H, W)
 
 
-def pix_points(lift, H, W, mode):
-    """[H, W, 3] world point per pixel for the pixel -> vertex step, pixels without a surface point filled from the nearest one that has.
-    splat = lift['pix_vertex'] (the original), raycast = raycast_pix_point."""
-    if mode == 'splat':
-        pv = lift['pix_vertex'].numpy(); has = pv >= 0; P = lift['vertices'].numpy()[np.maximum(pv, 0)]
-    else:
-        P, _ = raycast_pix_point(lift, H, W); has = np.isfinite(P[..., 0])
+def pix_points(lift, H, W):
+    """[H, W, 3] world point per pixel for the pixel -> vertex step (raycast_pix_point), pixels the ray misses filled from the nearest one."""
+    P, _ = raycast_pix_point(lift, H, W); has = np.isfinite(P[..., 0])
     _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has, return_indices=True)
     return P[ir, ic], has
 
@@ -78,9 +74,6 @@ def main():
     ap.add_argument('--target_faces', type=int, default=200000, help='decimated mesh size (~100 k vertices)')
     ap.add_argument('--gt_path', default=None, help='for the check figure: rows from the centres nearest the GT points')
     ap.add_argument('--check_png', default=None)
-    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast',
-                    help="pixel -> surface point: a ray cast on the faces (default since 2026-11-08) or lift.py's vertex splat (the full run "
-                         "of 2026-10-27; can see through to the back)")
     a = ap.parse_args()
     t0 = time.time()
     lift = torch.load(a.lift_path, map_location='cpu')
@@ -92,8 +85,8 @@ def main():
     assert lift['pix_vertex'].shape == (H, W), (lift['pix_vertex'].shape, safe.shape)
 
     # every safe-mask pixel -> a surface point (pixels with no surface point borrow the nearest pixel that has one)
-    PP, has = pix_points(lift, H, W, a.pix_map)
-    print(f'[lifted] pix_map {a.pix_map}: mask pixels {int(safe.sum())}, without a surface point {int((safe & ~has).sum())} '
+    PP, has = pix_points(lift, H, W)
+    print(f'[lifted] ray cast: mask pixels {int(safe.sum())}, without a surface point {int((safe & ~has).sum())} '
           f'(filled from the nearest one)', flush=True)
 
     V0, F0 = lift['vertices'].numpy(), lift['faces'].numpy()
@@ -135,7 +128,7 @@ def main():
     out = dict(t2)
     out.update({'table': table, 'diagonal': float(table.max()), 'true_diameter_2d': diam,
                 'lifted': {'lift_path': os.path.abspath(a.lift_path), 'table_2d': os.path.abspath(a.table_2d),
-                           'target_faces': a.target_faces, 'pix_map': a.pix_map, 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
+                           'target_faces': a.target_faces, 'pix_map': 'raycast', 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
                            'graph': 'edge-graph Dijkstra on the decimated lifted mesh'}})
     torch.save(out, a.out_path)
     meta = os.path.splitext(a.out_path)[0] + '_meta.json'

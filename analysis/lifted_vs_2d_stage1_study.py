@@ -41,7 +41,6 @@ def main():
     ap.add_argument('--panel', nargs=2, action='append', default=[], metavar=('PNG', 'TITLE'))
     ap.add_argument('--out_dir', required=True); ap.add_argument('--n_nb', type=int, default=8)
     ap.add_argument('--ring_frac', type=float, default=0.25); ap.add_argument('--target_faces', type=int, default=200000)
-    ap.add_argument('--pix_map', choices=['splat', 'raycast'], default='raycast', help='as build_lifted_geodesic_table.py')
     a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     S = a.src_dir; t = a.tag
@@ -53,7 +52,7 @@ def main():
     # 2D graph (8-connected pixels in the mask) and the lifted graph + pixel -> vertex, as the two table builders
     G2, idx, prow, pcol = grid_graph(mask)
     lift = torch.load(a.lift_path, map_location='cpu'); cam, box = lift['camera'], lift['crop_box']
-    PP, _ = pix_points(lift, *mask.shape, a.pix_map)
+    PP, _ = pix_points(lift, *mask.shape)
     V, F = decimate(lift['vertices'].numpy(), lift['faces'].numpy(), a.target_faces)
     G3 = edge_graph(V, F); _, lab = scipy.sparse.csgraph.connected_components(G3, directed=False)
     keep = np.nonzero(lab == np.bincount(lab).argmax())[0]; tree = cKDTree(V[keep])
