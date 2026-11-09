@@ -13,11 +13,11 @@ R=data/densepose_lvis; PX=/workspace/pixal3d_out; G=$PX/geom_full; RGBA=$PX/bear
 case $STEP in
 amodal)
   source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
-  d=$R/runs_full_poly/$tag; A=$R/lifted_full/$tag/amodal; mkdir -p $A
+  d=$R/runs_full_poly/$tag; A=$R/lifted_full/$tag/amodal; mkdir -p $A; A=$(realpath $A)
   cp $d/$tag.png $d/${tag}_mask.pth $A/
   python analysis/prep_amodal_input.py --ann_id $I --class_name bear --out_dir $A
   ( cd $DISC_WS/pix2gestalt_repo/pix2gestalt && env -u PYTHONPATH -u CONDA_DEFAULT_ENV PATH=$DISC_WS/pix2gestalt_repo/venv/bin:/usr/local/bin:/usr/bin:/bin \
-      PYTHONPATH=../stubs:taming-transformers:CLIP python ../run_amodal.py --run_dirs $(realpath $A) --tags $tag --n_samples 3 --steps 50 )
+      PYTHONPATH=../stubs:taming-transformers:CLIP python ../run_amodal.py --run_dirs $A --tags $tag --n_samples 3 --steps 50 )
   python analysis/merge_amodal_mask.py --run_dir $A --tag $tag
   python analysis/make_amodal_rgba.py --run_dir $A --tag $tag --sample auto --out_png $RGBA
   echo "AMODAL RGBA DONE $RGBA" ;;
