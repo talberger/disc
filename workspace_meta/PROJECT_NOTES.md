@@ -69,6 +69,29 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-11-08/09 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — SPLAT BUG FIXED (RAYCAST); 32412 = THE AMODAL-BEFORE-LIFT EXAMPLE; AMODAL + LIFT ON ALL 132 BEARS **RUNNING**
+Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections "באג: פיקסל ממופה לגב" .. "בריצה").
+- **Bug:** `lift.py`'s pix_vertex is a VERTEX splat -> a front pixel with no front vertex in it takes a BACK vertex (171627: 12.6% of the
+  pixels; rep 3 -> x3 0.758 vs 0.030 fixed, 2D 0.036). Its own pix_depth cannot reveal it (same splat). Fix: ray cast on the faces
+  (`build_lifted_geodesic_table.raycast_pix_point`, open3d) = the only mapping now (splat removed, Tal: never again). Check:
+  `analysis/lifted_pixel_vertex_check.py`; path PLYs for MeshLab: `analysis/export_lifted_path_ply.py`.
+- **Stage 1, 4 bears, raycast (learned ellipse):** 171627 30.4 -> 30.9 | 186446 33.4 -> 19.8 | 32412 45.8 -> 63.0 | 109595 101.7 -> 99.3
+  (2D 25.6 / 17.3 / 93.9 / 98.5). Visually cleaner. With raycast the 2D ellipse / mu = 1 no longer help -> keep the learned ellipse (Tal).
+  Figures `lifted_full/summary/stage1_raycast{,_mu}_backproj.png`, `stage1_ellipses_all_versions.png`.
+- **32412 = KEEP AS THE EXAMPLE of why amodal content is needed before the lift (Tal):** branch + grass cut the mask, Pixal3D folds the head
+  back (the mapping is right, the geometry wrong). pix2gestalt-completed image -> new lift -> head in front. Score 63.0 -> 94.4 (= 2D/SHIC),
+  visually much cleaner; 3 GT points. Full run only ran amodal for SPLIT masks; 32412's is in one piece.
+- **TRELLIS.2 alone:** canonical frame, no camera -> no pixel correspondence without a registration step. On 32412 it is FLAT (thickness
+  0.008 of the length) for both inputs; on its own example and 171627 it is 3D -> not a bug. 1024 decode OOMs on the A5000 (512 used).
+  `external/trellis2/run_trellis2.py`; its weights were DELETED again (space).
+- **PVC cleanup (Tal OK):** TRELLIS.2 weights 8.2 GB + the full run's raw lifts 20 GB (all 133 had remeshed copies) -> 43 GB free.
+- **RUNNING:** `scripts/run_amodal_lift_all.sh` on the 132 bears: STEP=amodal (gpu3, pix2gestalt forced; split-mask bears get a symlink to
+  their full lift) -> STEP=lift (pixal3d-env2, raw lifts deleted after remesh) -> STEP=train (gpu3, `run_stage1_raycast.sh`
+  ARMS="lifted_ray=full lifted_amodal=amodal", eval -> `lifted_full/lvis<i>/stage1_ray/eval_all.json`), pass 1 = bears ready, pass 2 = the rest.
+  Logs `/workspace/logs/amodal_all/`. Mac supervisor (scratchpad `supervise_amodal.sh`) resumes stopped workspaces; dies with a runai token
+  expiry. ~15-18 h. All steps resumable: rerun the same STEP.
+- **NEXT:** summary table of the 132 (2D / lifted splat / lifted_ray / lifted_amodal); 171627 rep 2 jump at the top edge, rep 3 detour.
+
 ## STATE AT CLOSE — 2026-11-01 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — LIFTED TEACHER: FULL 132-BEAR RUN = NO GAIN; THE LIFTED RUN'S OWN STAGE-1 ELLIPSE IS PART OF THE LOSS. **NOTHING IS RUNNING** (written 11-08; workspaces may have been stopped by Run:ai).
 Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections from "ריצה מלאה" on).
 - **Full run (10-28/29, `scripts/run_full_lifted.sh`), 132 bears, LVIS polygon mask, remeshed lifts:** mean SHIC 32.9 | ZS 39.2 | 2D stage1 35.1,
