@@ -69,7 +69,7 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
-## 2026-11-08/09 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — SPLAT BUG FIXED (RAYCAST); 32412 = THE AMODAL-BEFORE-LIFT EXAMPLE; AMODAL + LIFT ON ALL 132 BEARS **RUNNING**
+## 2026-11-08/09 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — SPLAT BUG FIXED (RAYCAST); 32412 = THE AMODAL-BEFORE-LIFT EXAMPLE; AMODAL + LIFT ON ALL 132 BEARS: NO MEAN GAIN (done 2026-11-10 04:12)
 Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections "באג: פיקסל ממופה לגב" .. "בריצה").
 - **Bug:** `lift.py`'s pix_vertex is a VERTEX splat -> a front pixel with no front vertex in it takes a BACK vertex (171627: 12.6% of the
   pixels; rep 3 -> x3 0.758 vs 0.030 fixed, 2D 0.036). Its own pix_depth cannot reveal it (same splat). Fix: ray cast on the faces
@@ -78,6 +78,11 @@ Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections "באג
 - **Stage 1, 4 bears, raycast (learned ellipse):** 171627 30.4 -> 30.9 | 186446 33.4 -> 19.8 | 32412 45.8 -> 63.0 | 109595 101.7 -> 99.3
   (2D 25.6 / 17.3 / 93.9 / 98.5). Visually cleaner. With raycast the 2D ellipse / mu = 1 no longer help -> keep the learned ellipse (Tal).
   Figures `lifted_full/summary/stage1_raycast{,_mu}_backproj.png`, `stage1_ellipses_all_versions.png`.
+- **Amodal + lift, all 132 bears, stage 1 raycast (done 2026-11-10 04:12, 0 failures):** mean SHIC 33.0 | 2D 35.1 | splat 34.5 |
+  ray 34.5 | amodal 34.4 (median 22.8 / 25.1 / 24.4 / 24.3 / 23.2). 119 bears with a new amodal lift: amodal better than ray on 57, worse
+  on 59, mean diff -0.1. Oracle min(ray, amodal) = 32.2. 32412 is the biggest LOSS (+31.4) despite the cleaner mesh. Gains 15618 / 237843 /
+  5459; losses 32412 / 159486 / 151955. Table `lifted_full/summary/amodal_final_summary.txt`; figures `amodal_final_{scatter,gains_losses}.png`.
+  NEXT: why 32412 loses; a per-bear criterion for ray vs amodal; 171627 rep 2 / rep 3.
 - **32412 = KEEP AS THE EXAMPLE of why amodal content is needed before the lift (Tal):** branch + grass cut the mask, Pixal3D folds the head
   back (the mapping is right, the geometry wrong). pix2gestalt-completed image -> new lift -> head in front. Score 63.0 -> 94.4 (= 2D/SHIC),
   visually much cleaner; 3 GT points. Full run only ran amodal for SPLIT masks; 32412's is in one piece.
