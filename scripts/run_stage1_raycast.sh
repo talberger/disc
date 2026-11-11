@@ -12,18 +12,22 @@
 # locked by its worker (stage1_ray/.lock, taken over when older than 60 min = a worker that died with the workspace).
 # 2026-11-11 (double shell, 151955): PIXMAP=triangle = build_lifted_geodesic_table.py --pix_map triangle (a vertex of the decimated triangle
 # the ray hits, never the inner skin); give it its own OUT (e.g. OUT=stage1_tri: runs, tables, eval_all.json and backproj/ all under it).
+# 2026-11-11 (other classes, scripts/run_class_short.sh): CLASS=horse|elephant with its own RUNS (inputs) and LROOT (outputs); lifts are
+# $G/<class>_lvis<i>_<suffix>_lift.pth. A class without a full run has no 2d_stage1 / lifted_stage1 arm (the eval takes the arms whose
+# pred_f exists) and gets its position colours here. LEAN=1 deletes every pred_f of the run after the eval (~90 MB per arm).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-OBJ=./demo/shic/shapes/bear.obj; NAME=shic_bear; P1=./experiments/shic_bear/encoder_dfd_crossview_phase1
-GEO3D=./experiments/shic_bear/geodesic_tables/shic_bear_geo_table_3d.pth; GEO228=$R/eval_shic_bear/bear_heat_geodesics_228.npy
-CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}
+OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
+GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
+CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
+[ $CLASS = bear ] && CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
 for i in ${IDS:?}; do
-  d=$R/runs_full_poly/lvis$i; L=$R/lifted_full/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
-  [ -f $B/lvis${i}_position_color.png ] || cp $L/backproj/lvis${i}_position_color.png $B/   # the back-projection's colours (full run)
+  d=$RUNS/lvis$i; L=$LROOT/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
   # split-mask bears: the full run's amodal mask is the geodesic domain of the 2D table AND of the training (as run_lvis_worker.py /
   # run_lifted_instance.sh); without it the training stops at "segment 1 has no out-of-segment pixel" (7107, 206034; 2026-11-09)
@@ -36,18 +40,25 @@ for i in ${IDS:?}; do
   fi
   trap "rmdir $O/.lock 2>/dev/null" EXIT
   echo "##### $tag #####"
+  if [ ! -f $B/lvis${i}_position_color.png ]; then                      # the back-projection's colours: the full run's, else made here
+    if [ -f $L/backproj/lvis${i}_position_color.png ]; then cp $L/backproj/lvis${i}_position_color.png $B/
+    else python analysis/pixel_coloring.py --img_path $d/$tag.png --mask_path $d/${tag}_mask.pth --mode position --save_dir $B \
+        --output_path $B/lvis${i}_position_color.png > $B/log.txt 2>&1; fi
+  fi
   [ -f $F ] || t python analysis/extract_dino_sd_features.py --img_path $d/$tag.png --save_dir $d --output_path $F --sd_frame square_pad --cpu_postprocess > $O/features.log 2>&1
-  [ -f $O/meta_2d_fullrun.json ] || cp $d/${tag}_mask_geo_table_2d_seed0_meta.json $O/meta_2d_fullrun.json
+  [ -f $O/meta_2d_fullrun.json ] || [ ! -f $d/${tag}_mask_geo_table_2d_seed0_meta.json ] || cp $d/${tag}_mask_geo_table_2d_seed0_meta.json $O/meta_2d_fullrun.json
   [ -f $T2 ] || t python analysis/build_geodesic_tables.py --obj_path $OBJ --name $NAME --skip_3d --object_mask_path $d/${tag}_mask.pth \
       --fine_seg_path $d/${tag}_fine_segments.pth ${AMODAL[@]+"${AMODAL[@]}"} --num_center_pixels 2048 --seed 0 --true_diameter --out_dir $d > $O/table2d.log 2>&1
   NSEG=$(python -c "import torch; print(int((torch.unique(torch.as_tensor(torch.load('$d/${tag}_fine_segments.pth'))) > 0).sum()))")
   if [ $NSEG -eq 1 ]; then NB=(--num_neighbors_in_segment 16 --num_neighbors_out_segment 0 --switch_nin 16 --switch_nout 0)
   else NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --switch_nin 16 --switch_nout 0); fi
-  EV=(--arm zs=$P1/pred_f.pth --arm 2d_stage1=$d/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth
-      --arm lifted_stage1=$L/encoder_loraW_all_r4_phase2_lifted_full/alpha_stageA_end/alpha0.5/pred_f.pth)
+  EV=(--arm zs=$P1/pred_f.pth)
+  for a in 2d_stage1=$d/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth \
+           lifted_stage1=$L/encoder_loraW_all_r4_phase2_lifted_full/alpha_stageA_end/alpha0.5/pred_f.pth; do
+    if [ -f ${a#*=} ]; then EV+=(--arm $a); fi; done
   declare -A RUN_OF=()                                                  # lift file -> the arm that trained on it
   for a in $ARMS; do
-    ARM=${a%%=*}; LIFT=$G/bear_${tag}_${a#*=}_lift.pth; P2=$O/$ARM
+    ARM=${a%%=*}; LIFT=$G/${CLASS}_${tag}_${a#*=}_lift.pth; P2=$O/$ARM
     [ -e $LIFT ] || { echo "lvis$i $ARM: no lift $LIFT, skipped"; continue; }
     real=$(realpath $LIFT)
     if [ -n "${RUN_OF[$real]:-}" ]; then                                # same lift as an earlier arm: reuse its run
@@ -76,7 +87,7 @@ for i in ${IDS:?}; do
       mkdir -p $B/soft_$ARM
       python analysis/run_in_one_process.py \
         analysis/color_mesh_from_soft_mapping.py --mask_path $d/${tag}_mask.pth --img_path $d/$tag.png --save_dir $B/soft_$ARM \
-          --features_path $F --vertex_features_path $P2/alpha/alpha0.5/pred_f.pth --obj_path $OBJ --name shic_bear \
+          --features_path $F --vertex_features_path $P2/alpha/alpha0.5/pred_f.pth --obj_path $OBJ --name $NAME \
           --color_mode position --color_path $B/lvis${i}_position_color.png --k_vertices_per_pixel 10 --temperature 0.01 --- \
         analysis/color_image_from_knn.py --mask_path $d/${tag}_mask.pth --knn_dir $B/soft_$ARM \
           --knn_path $B/soft_$ARM/${tag}_mask_soft_snap_correspondence.pth --vertex_colors_path $CHK \
@@ -91,8 +102,9 @@ for i in ${IDS:?}; do
   python -c "
 import json; r = json.load(open('$O/eval_all.json'))['arms']
 print('STAGE1 RAY $i: ' + ' | '.join('%s %.1f' % (a, v['soft_snap']['all']['mean']) for a, v in r.items()))"
-  cp $O/meta_2d_fullrun.json $d/${tag}_mask_geo_table_2d_seed0_meta.json
+  if [ -f $O/meta_2d_fullrun.json ]; then cp $O/meta_2d_fullrun.json $d/${tag}_mask_geo_table_2d_seed0_meta.json; fi
   rm -f $T2 $F
+  if [ $LEAN = 1 ]; then rm -f $O/*/pred_f.pth $O/*/alpha/alpha0.5/pred_f.pth; fi
   rmdir $O/.lock; trap - EXIT
 done
 echo "ALL STAGE1 RAY DONE"
