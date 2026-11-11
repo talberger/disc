@@ -23,6 +23,7 @@ CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
 for i in ${IDS:?}; do
   d=$R/runs_full_poly/lvis$i; L=$R/lifted_full/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
+  [ -f $B/lvis${i}_position_color.png ] || cp $L/backproj/lvis${i}_position_color.png $B/   # the back-projection's colours (full run)
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
   # split-mask bears: the full run's amodal mask is the geodesic domain of the 2D table AND of the training (as run_lvis_worker.py /
   # run_lifted_instance.sh); without it the training stops at "segment 1 has no out-of-segment pixel" (7107, 206034; 2026-11-09)
