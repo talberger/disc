@@ -7,8 +7,8 @@
 # Three ROLES that hand over through files on the PVC, so each runs in its own workspace and all can be started at once:
 #   ROLE=prep  (disc image)    PARTS / NPART = this run's share of the list (index % NPART in PARTS); NGPU GPUs, PLANES processes per GPU.
 #              -> $PX/<class>_lvis<i>_amodal_rgba.png + .ready ; $ST/prep_part<k>.done when a part is finished
-#   ROLE=lift  (pixal3d image) NGPU GPUs; GPU g takes the ready images with index % NGPU == g, in batches (the models take minutes to
-#              load: waits for MINB images while prep still runs), lift.py --low_vram -> remesh_lift.py -> $G/<class>_lvis<i>_amodal_lift.pth
+#   ROLE=lift  (pixal3d image) NGPU GPUs, each takes ready images in batches under a claim folder ($ST/lift_claim_<i>: several workspaces may
+#              lift the same list; the models take minutes to load: waits for MINB images while prep still runs), lift.py --low_vram -> remesh_lift.py -> $G/<class>_lvis<i>_amodal_lift.pth
 #              -> $ST/lift.done when prep is done and nothing is left
 #   ROLE=train (disc image)    NGPU GPUs x LANES workers; every worker walks the WHOLE list (instances are locked per worker, so several
 #              workspaces share it) and trains what has a lift; ends when lift.done exists and nothing is left.
@@ -100,31 +100,35 @@ Image.fromarray(np.dstack([im, (m * 255).astype(np.uint8)])).save(sys.argv[3])" 
 
 lift)
   cd /workspace/pixal3d_repo && source /workspace/envs/pixal3d/bin/activate
-  MINB=${MINB:-30}; BATCH=${BATCH:-80}
+  MINB=${MINB:-20}; BATCH=${BATCH:-40}
   remesh() {   # raw lifts -> the cleaned lift; the raw one deleted (PVC space)
     [ $# -gt 0 ] || return 0
     python /workspace/disc/external/pixal3d/remesh_lift.py --lifts "$@" --out_dir $G | grep -E "REMESH|Error"
     local r; for r in "$@"; do [ -f $G/$(basename $r) ] && rm -f $r; done
   }
+  claim() {   # one lane of one workspace per image (several lift runs may share the list); a claim older than 3 h is taken over
+    local c=$ST/lift_claim_$1
+    [ -d $c ] && [ -n "$(find $c -maxdepth 0 -mmin +180)" ] && rmdir $c 2>/dev/null
+    mkdir $c 2>/dev/null
+  }
   gpu_lane() {
-    local g=$1 t i k; export CUDA_VISIBLE_DEVICES=$g
-    local RAW=(); k=0
-    for i in $ALL; do t=${CLASS}_lvis${i}_amodal
-      [ $((k++ % NGPU)) -eq $g ] && [ -f $G/raw/${t}_lift.pth ] && [ ! -e $G/${t}_lift.pth ] && RAW+=($G/raw/${t}_lift.pth); done
-    remesh "${RAW[@]+"${RAW[@]}"}"                                       # left by a run that stopped between lift and remesh
+    local g=$1 t i left; export CUDA_VISIBLE_DEVICES=$g
     while :; do
-      local IM=() TG=(); k=0
+      local IM=() TG=() RAW=(); left=0
       for i in $ALL; do t=${CLASS}_lvis${i}_amodal
-        [ $((k++ % NGPU)) -eq $g ] || continue
-        [ -f $PX/$t.ready ] && [ ! -e $G/${t}_lift.pth ] && [ ! -f $ST/lift_failed_$i ] || continue
-        IM+=($PX/${t}_rgba.png); TG+=($t); [ ${#IM[@]} -ge $BATCH ] && break
+        [ -e $G/${t}_lift.pth ] || [ -f $ST/lift_failed_$i ] && continue
+        left=$((left + 1)); [ -f $PX/$t.ready ] && [ ${#IM[@]} -lt $BATCH ] && claim $i || continue
+        if [ -f $G/raw/${t}_lift.pth ]; then RAW+=($G/raw/${t}_lift.pth); TG+=($t)   # left by a run that stopped between lift and remesh
+        else IM+=($PX/${t}_rgba.png); TG+=($t); fi
       done
       local prepdone=0; [ $(ls $ST | grep -c '^prep_part.*\.done$') -ge $(cat $ST/nparts 2>/dev/null || echo 1) ] && prepdone=1
-      if [ ${#IM[@]} -eq 0 ] && [ $prepdone = 1 ]; then break; fi
-      if [ ${#IM[@]} -lt $MINB ] && [ $prepdone = 0 ]; then sleep 60; continue; fi
+      if [ $left -eq 0 ] && [ $prepdone = 1 ]; then break; fi
+      if [ ${#TG[@]} -lt $MINB ] && { [ $prepdone = 0 ] || [ ${#TG[@]} -eq 0 ]; }; then   # too few yet, or the rest is held by another lane
+        for t in "${TG[@]+"${TG[@]}"}"; do i=${t#${CLASS}_lvis}; rmdir $ST/lift_claim_${i%_amodal}; done; sleep 60; continue
+      fi
       echo "gpu $g: lift ${#IM[@]} images [$(date -u +%T)]"
-      HF_HUB_OFFLINE=1 HF_HOME=/workspace/.cache/huggingface python /workspace/disc/external/pixal3d/lift.py --images "${IM[@]}" --tags "${TG[@]}" \
-          --out_dir $G/raw --low_vram 2>&1 | grep -E '^\[lift\].*(loaded|mesh|IoU)|FAILED|DONE|Error'
+      [ ${#IM[@]} -gt 0 ] && HF_HUB_OFFLINE=1 HF_HOME=/workspace/.cache/huggingface python /workspace/disc/external/pixal3d/lift.py --images "${IM[@]}" \
+          --tags "${TG[@]:${#RAW[@]}}" --out_dir $G/raw --low_vram 2>&1 | grep -E '^\[lift\].*(loaded|mesh|IoU)|FAILED|DONE|Error'
       RAW=(); for t in "${TG[@]}"; do [ -f $G/raw/${t}_lift.pth ] && RAW+=($G/raw/${t}_lift.pth); done
       remesh "${RAW[@]+"${RAW[@]}"}"
       for t in "${TG[@]}"; do i=${t#${CLASS}_lvis}; i=${i%_amodal}
