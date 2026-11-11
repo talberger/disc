@@ -152,7 +152,7 @@ train)
         [ -e $G/${CLASS}_lvis${i}_amodal_lift.pth ] || continue
         [ -d $O/.lock ] && [ -z "$(find $O/.lock -maxdepth 0 -mmin +60)" ] && continue
         [ $(cat $ST/train_failed_$i 2>/dev/null | wc -l) -ge 2 ] && continue
-        IDS=$i ARMS="lifted_amodal=amodal" PIXMAP=triangle OUT=stage1_tri LEAN=1 bash scripts/run_stage1_raycast.sh 2>&1 | grep -E "^STAGE1|FAILED|Error|error:"
+        IDS=$i ARMS="lifted_amodal=amodal" PIXMAP=triangle OUT=stage1_tri LEAN=1 ZSBP=1 bash scripts/run_stage1_raycast.sh 2>&1 | grep -E "^STAGE1|FAILED|Error|error:"
         if [ -f $O/eval_all.json ]; then did=1; elif [ ! -d $O/.lock ]; then echo "lvis$i FAILED (gpu $g worker $w)"; echo x >> $ST/train_failed_$i; fi
       done
       [ $did = 1 ] && { idle=0; continue; }

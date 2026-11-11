@@ -15,17 +15,30 @@
 # 2026-11-11 (other classes, scripts/run_class_short.sh): CLASS=horse|elephant with its own RUNS (inputs) and LROOT (outputs); lifts are
 # $G/<class>_lvis<i>_<suffix>_lift.pth. A class without a full run has no 2d_stage1 / lifted_stage1 arm (the eval takes the arms whose
 # pred_f exists) and gets its position colours here. LEAN=1 deletes every pred_f of the run after the eval (~90 MB per arm).
+# ZSBP=1 also back-projects the zero-shot (phase 1) features, $B/lvis<i>_zs_backproj.png (a class without a full run has none).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
 [ $CLASS = bear ] && CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
+backproj() {   # $1 = arm, $2 = its pred_f -> $B/lvis<i>_<arm>_backproj.png (the instance's variables are the loop's)
+  mkdir -p $B/soft_$1
+  python analysis/run_in_one_process.py \
+    analysis/color_mesh_from_soft_mapping.py --mask_path $d/${tag}_mask.pth --img_path $d/$tag.png --save_dir $B/soft_$1 \
+      --features_path $F --vertex_features_path $2 --obj_path $OBJ --name $NAME \
+      --color_mode position --color_path $B/lvis${i}_position_color.png --k_vertices_per_pixel 10 --temperature 0.01 --- \
+    analysis/color_image_from_knn.py --mask_path $d/${tag}_mask.pth --knn_dir $B/soft_$1 \
+      --knn_path $B/soft_$1/${tag}_mask_soft_snap_correspondence.pth --vertex_colors_path $CHK \
+      --source_image_path $d/$tag.png --k 1 --save_dir $B --output_path $B/lvis${i}_$1_backproj.png --no_side_by_side >> $B/log.txt 2>&1 \
+    || echo "lvis$i backproj $1 FAILED"
+  rm -rf $B/soft_$1
+}
 for i in ${IDS:?}; do
   d=$RUNS/lvis$i; L=$LROOT/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
@@ -53,6 +66,7 @@ for i in ${IDS:?}; do
   if [ $NSEG -eq 1 ]; then NB=(--num_neighbors_in_segment 16 --num_neighbors_out_segment 0 --switch_nin 16 --switch_nout 0)
   else NB=(--num_neighbors_in_segment 8 --num_neighbors_out_segment 8 --switch_nin 16 --switch_nout 0); fi
   EV=(--arm zs=$P1/pred_f.pth)
+  [ $ZSBP = 0 ] || [ -f $B/lvis${i}_zs_backproj.png ] || backproj zs $P1/pred_f.pth   # the zero-shot picture, next to the arms'
   for a in 2d_stage1=$d/encoder_loraW_all_r4_phase2/alpha_stageA_end/alpha0.5/pred_f.pth \
            lifted_stage1=$L/encoder_loraW_all_r4_phase2_lifted_full/alpha_stageA_end/alpha0.5/pred_f.pth; do
     if [ -f ${a#*=} ]; then EV+=(--arm $a); fi; done
@@ -83,18 +97,7 @@ for i in ${IDS:?}; do
       rm -f $P2/encoder_checkpoint*.pth $TL
     fi
     EV+=(--arm $ARM=$P2/alpha/alpha0.5/pred_f.pth)
-    if [ ! -f $B/lvis${i}_${ARM}_backproj.png ]; then
-      mkdir -p $B/soft_$ARM
-      python analysis/run_in_one_process.py \
-        analysis/color_mesh_from_soft_mapping.py --mask_path $d/${tag}_mask.pth --img_path $d/$tag.png --save_dir $B/soft_$ARM \
-          --features_path $F --vertex_features_path $P2/alpha/alpha0.5/pred_f.pth --obj_path $OBJ --name $NAME \
-          --color_mode position --color_path $B/lvis${i}_position_color.png --k_vertices_per_pixel 10 --temperature 0.01 --- \
-        analysis/color_image_from_knn.py --mask_path $d/${tag}_mask.pth --knn_dir $B/soft_$ARM \
-          --knn_path $B/soft_$ARM/${tag}_mask_soft_snap_correspondence.pth --vertex_colors_path $CHK \
-          --source_image_path $d/$tag.png --k 1 --save_dir $B --output_path $B/lvis${i}_${ARM}_backproj.png --no_side_by_side >> $B/log.txt 2>&1 \
-        || echo "lvis$i backproj $ARM FAILED"
-      rm -rf $B/soft_$ARM
-    fi
+    [ -f $B/lvis${i}_${ARM}_backproj.png ] || backproj $ARM $P2/alpha/alpha0.5/pred_f.pth
   done
   unset RUN_OF
   python analysis/eval_lvis_ours.py --run_dir $d --tag $tag --obj_path $OBJ --name $NAME --geodesics_path $GEO228 --out_json $O/eval_all.json \
