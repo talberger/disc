@@ -37,7 +37,7 @@ export CLASS R RUNS LROOT PX G ST
 case $ROLE in
 prep)
   source env/activate.sh
-  PLANES=${PLANES:-3}; CHUNK=${CHUNK:-40}
+  PLANES=${PLANES:-2}; CHUNK=${CHUNK:-40}
   echo $NPART > $ST/nparts
   MINE=$(echo $ALL | tr ' ' '\n' | awk -v n=$NPART -v p=" $PARTS " 'index(p, " " ((NR - 1) % n) " ")')
   echo "prep: $(echo $MINE | wc -w) instances (parts $PARTS of $NPART)"
@@ -78,6 +78,7 @@ Image.fromarray(np.dstack([im, (m * 255).astype(np.uint8)])).save(sys.argv[3])" 
       local ids="${*:1:$CHUNK}"; shift $(( $# < CHUNK ? $# : CHUNK ))
       echo $ids | tr ' ' '\n' | xargs -P $PLANES -I{} bash -c 'prep_one {}'
       local D2=() T2=() i
+      for i in $ids; do prep_one $i; done   # one at a time: whoever failed in parallel (SAM out of GPU memory); a no-op for the rest
       for i in $ids; do local A=$LROOT/lvis$i/amodal
         [ -f $PX/${CLASS}_lvis${i}_amodal.ready ] && continue
         [ -f $A/lvis${i}_amodal_input.npz ] && [ ! -f $A/lvis${i}_amodal_samples.npz ] && { D2+=($(realpath $A)); T2+=(lvis$i); }
