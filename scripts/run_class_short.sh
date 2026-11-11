@@ -7,7 +7,7 @@
 # Three ROLES that hand over through files on the PVC, so each runs in its own workspace and all can be started at once:
 #   ROLE=prep  (disc image)    PARTS / NPART = this run's share of the list (index % NPART in PARTS); NGPU GPUs, PLANES processes per GPU.
 #              -> $PX/<class>_lvis<i>_amodal_rgba.png + .ready ; $ST/prep_part<k>.done when a part is finished
-#   ROLE=lift  (pixal3d image) NGPU GPUs, each takes ready images in batches under a claim folder ($ST/lift_claim_<i>: several workspaces may
+#   ROLE=lift  (pixal3d image) NGPU GPUs x LANES lanes, each takes ready images in batches under a claim folder ($ST/lift_claim_<i>: several workspaces may
 #              lift the same list; the models take minutes to load: waits for MINB images while prep still runs), lift.py --low_vram -> remesh_lift.py -> $G/<class>_lvis<i>_amodal_lift.pth
 #              -> $ST/lift.done when prep is done and nothing is left
 #   ROLE=train (disc image)    NGPU GPUs x LANES workers; every worker walks the WHOLE list (instances are locked per worker, so several
@@ -136,7 +136,8 @@ lift)
     done
     echo "gpu $g: LIFT LANE DONE [$(date -u +%T)]"
   }
-  for g in $(seq 0 $((NGPU - 1))); do gpu_lane $g > $ST/lift_$(hostname)_gpu$g.log 2>&1 & done; wait
+  for g in $(seq 0 $((NGPU - 1))); do for l in $(seq 1 ${LANES:-1}); do   # several lanes fit on one GPU (--low_vram: a few GB each)
+    gpu_lane $g > $ST/lift_$(hostname)_gpu${g}_l$l.log 2>&1 & sleep 5; done; done; wait
   touch $ST/lift.done; echo "LIFT DONE [$(date -u +%T)]" ;;
 
 train)
