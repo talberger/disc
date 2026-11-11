@@ -24,6 +24,9 @@ body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); pad
 .read { max-width: 110ch; display: flex; flex-direction: column; gap: 10px; }
 h1 { font-size: 26px; line-height: 1.2; font-weight: 600; margin: 0; text-wrap: balance; }
 p { margin: 0; } .muted { color: var(--muted); }
+table { border-collapse: collapse; align-self: flex-start; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 0 4px 28px; text-align: right; } th:first-child, td:first-child { text-align: left; padding-left: 0; } th { font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+td.num { font-family: var(--mono); }
 .key { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: flex-end; margin-top: -14px; }
 .key figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; } .key img { height: auto; max-width: 100%; display: block; }
 .key figcaption { font-size: 12px; color: var(--muted); }
@@ -41,8 +44,11 @@ p { margin: 0; } .muted { color: var(--muted); }
 <div class="wrap">
   <div class="read">
     <h1>Ours vs SHIC on __N__ LVIS bears</h1>
-    <p>Mean error (lower is better): SHIC __SM__, ours __OM__. Ours is better on __WIN__ bears, SHIC on __LOSE__, __TIE__ the same.</p>
-    <p class="muted">Colours: every pixel takes the colour of the point it is matched to on the painted canonical mesh below.</p>
+    <table>
+      <tr><th></th><th>SHIC</th><th>ours</th></tr>
+      <tr><td>mean error (lower is better)</td><td class="num">__SM__</td><td class="num">__OM__</td></tr>
+      <tr><td>better on (bears, __TIE__ the same)</td><td class="num">__LOSE__</td><td class="num">__WIN__</td></tr>
+    </table>
   </div>
   <div class="key">__KEY__</div>
   <div class="bar" role="group" aria-label="Sort the bears"><span class="muted">Sort by</span><span id="btns"></span><span class="muted" id="count"></span></div>
