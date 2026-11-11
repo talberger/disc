@@ -10,16 +10,19 @@
 # Features and the 2D table were deleted by the full-run cleanup: rebuilt once per bear (same commands, seed 0) and deleted again after.
 # Resumable: a bear with eval_all.json and every arm's back-projection is skipped. Several workers may run at once (2026-11-09): a bear is
 # locked by its worker (stage1_ray/.lock, taken over when older than 60 min = a worker that died with the workspace).
-# Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] bash scripts/run_stage1_raycast.sh
+# 2026-11-11 (double shell, 151955): PIXMAP=triangle = build_lifted_geodesic_table.py --pix_map triangle (a vertex of the decimated triangle
+# the ray hits, never the inner skin); give it its own OUT (e.g. OUT=stage1_tri: runs, tables, eval_all.json and backproj/ all under it).
+# Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
+PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
 OBJ=./demo/shic/shapes/bear.obj; NAME=shic_bear; P1=./experiments/shic_bear/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_bear/geodesic_tables/shic_bear_geo_table_3d.pth; GEO228=$R/eval_shic_bear/bear_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/bear_shic_normalized_mesh_checker16_uv_color.pth
 t() { local s=$(date +%s); "$@"; echo "[time] $(( $(date +%s) - s )) s : $1 $2"; }
 for i in ${IDS:?}; do
-  d=$R/runs_full_poly/lvis$i; L=$R/lifted_full/lvis$i; O=$L/stage1_ray; B=$L/backproj; mkdir -p $O $B; tag=lvis$i
+  d=$R/runs_full_poly/lvis$i; L=$R/lifted_full/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
   T2=$d/${tag}_mask_geo_table_2d_seed0.pth; F=$d/${tag}_pix_sdsquare_fuse16.pth
   # split-mask bears: the full run's amodal mask is the geodesic domain of the 2D table AND of the training (as run_lvis_worker.py /
   # run_lifted_instance.sh); without it the training stops at "segment 1 has no out-of-segment pixel" (7107, 206034; 2026-11-09)
@@ -54,7 +57,7 @@ for i in ${IDS:?}; do
     RUN_OF[$real]=$ARM
     TL=$O/${tag}_mask_geo_table_${ARM}_seed0.pth
     if [ ! -f $P2/alpha/alpha0.5/pred_f.pth ]; then
-      [ -f ${TL%.pth}_meta.json ] && [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2 --out_path $TL > $O/tablelifted_$ARM.log 2>&1
+      [ -f ${TL%.pth}_meta.json ] && [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2 --out_path $TL --pix_map $PIXMAP > $O/tablelifted_$ARM.log 2>&1
       DL=$(python -c "import json; print(json.load(open('${TL%.pth}_meta.json'))['true_diameter_2d'])")
       [ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
           --object_mask_path $d/${tag}_mask.pth --fine_seg_path $d/${tag}_fine_segments.pth --pix_dino_features_path $F \

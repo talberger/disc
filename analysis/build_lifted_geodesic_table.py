@@ -6,7 +6,8 @@ its distances, so the file is a drop-in --geo_table_2d_path: coords / pixel_to_n
 unchanged and train_relational_loss.py's consistency checks pass as before. Feed the printed lifted diameter as --geo_diag_2d.
 
 Steps: lifted mesh (Pixal3D: ~2-3 M vertices) -> quadric decimation to --target_faces -> largest connected component -> every mask pixel gets
-the decimated vertex nearest (in 3D) to the first surface point a camera ray through it hits (rays that miss: the nearest pixel that has one) ->
+the decimated vertex nearest (in 3D) to the first surface point a camera ray through it hits (rays that miss: the nearest pixel that has one;
+--pix_map triangle: a vertex of the decimated triangle the ray hits, so never the inner skin of the double shell) ->
 Dijkstra on the decimated mesh's EDGE graph (edge length = Euclidean; overestimates the true surface geodesic by a roughly uniform factor,
 which the diameter normalisation cancels to first order) from every centre's vertex -> table[i, n] = d(centre_i, pixel n).
 Diameter = double sweep over the vertices of the mask pixels (visible-to-visible, like true_diameter_2d).
@@ -34,23 +35,48 @@ def decimate(V, F, target_faces):
     return np.asarray(m.vertices), np.asarray(m.triangles)
 
 
-def raycast_pix_point(lift, H, W):
-    """Per pixel of OUR crop: the first surface point a camera ray through the pixel centre hits (Tal, 2026-11-08). lift.py's pix_vertex is a
-    VERTEX splat: where no front vertex falls in a pixel but a back one does, the pixel sees through to the back (171627 rep 3 -> x3).
-    Returns points [H, W, 3] (world, nan where the ray misses), depth [H, W] (camera depth, inf where it misses)."""
-    import math, open3d as o3d
+def pix_rays(lift, H, W):
+    """Camera rays through the pixel centres of OUR crop: origin [3], unit directions [H * W, 3] (world), and the factor that turns a
+    distance along a ray into camera depth (along the optical axis, as plot_lifted_geodesic_paths.project's depth)."""
+    import math
     cam, (x0, y0, S) = lift['camera'], lift['crop_box']
     f = (16.0 / math.tan(cam['camera_angle_x'] / 2)) * S / 32.0          # as plot_lifted_geodesic_paths.project
     r, c = np.mgrid[0:H, 0:W].reshape(2, -1) + 0.5                        # splat floors, so pixel (r, c) covers [r, r + 1)
     dc = np.stack([(c - S / 2 - x0) / f, -(r - S / 2 - y0) / f, -np.ones_like(c)], 1)
     R = np.array([[1.0, 0, 0], [0, 0, -1], [0, 1, 0]]); o = np.array([0.0, -cam['distance'], 0])
     dw = dc @ R.T; dw /= np.linalg.norm(dw, axis=1, keepdims=True)
-    sc = o3d.t.geometry.RaycastingScene()
-    sc.add_triangles(lift['vertices'].numpy().astype(np.float32), lift['faces'].numpy().astype(np.uint32))
-    th = sc.cast_rays(o3d.core.Tensor(np.c_[np.broadcast_to(o, dw.shape), dw].astype(np.float32)))['t_hit'].numpy().astype(np.float64)
+    return o, dw, -dc[:, 2] / np.linalg.norm(dc, axis=1)
+
+
+def cast(V, F, o, dw):
+    import open3d as o3d
+    sc = o3d.t.geometry.RaycastingScene(); sc.add_triangles(np.asarray(V, np.float32), np.asarray(F, np.uint32))
+    res = sc.cast_rays(o3d.core.Tensor(np.c_[np.broadcast_to(o, dw.shape), dw].astype(np.float32)))
+    return res['t_hit'].numpy().astype(np.float64), res['primitive_ids'].numpy()
+
+
+def raycast_pix_point(lift, H, W):
+    """Per pixel of OUR crop: the first surface point a camera ray through the pixel centre hits (Tal, 2026-11-08). lift.py's pix_vertex is a
+    VERTEX splat: where no front vertex falls in a pixel but a back one does, the pixel sees through to the back (171627 rep 3 -> x3).
+    Returns points [H, W, 3] (world, nan where the ray misses), depth [H, W] (camera depth, inf where it misses)."""
+    o, dw, zc = pix_rays(lift, H, W)
+    th, _ = cast(lift['vertices'].numpy(), lift['faces'].numpy(), o, dw)
     P = o + th[:, None] * dw; P[~np.isfinite(th)] = np.nan
-    depth = th * (-dc[:, 2] / np.linalg.norm(dc, axis=1))                 # along the optical axis, as project()'s depth
-    return P.reshape(H, W, 3), depth.reshape(H, W)
+    return P.reshape(H, W, 3), (th * zc).reshape(H, W)
+
+
+def raycast_pix_vertex(lift, V, F, H, W):
+    """Per pixel of OUR crop: a vertex of the triangle of (V, F) the camera ray hits first, the one nearest the hit; pixels the ray misses
+    take the nearest pixel's (Tal, 2026-11-11). (V, F) = the DECIMATED mesh the geodesics run on. The remeshed lift is a thin double shell
+    (remesh_lift.py's narrow-band remesh wraps the open decoded surface on both sides, the two skins ~0.25 % of the bear apart), so the
+    decimated vertex nearest in 3D to a hit on the full mesh is often on the INNER skin, a long way round on the surface
+    (analysis/lifted_sheet_check.py, lvis151955: 21-25 % of the amodal lift's pixels). Returns vertex ids [H, W], hit [H, W] bool."""
+    o, dw, _ = pix_rays(lift, H, W)
+    th, pid = cast(V, F, o, dw); ok = np.isfinite(th); tri = F[pid[ok]]
+    k = np.argmin(np.linalg.norm(V[tri] - (o + th[ok, None] * dw[ok])[:, None], axis=2), 1)
+    pv = np.zeros(H * W, np.int64); pv[ok] = tri[np.arange(len(tri)), k]; pv, ok = pv.reshape(H, W), ok.reshape(H, W)
+    _, (ir, ic) = scipy.ndimage.distance_transform_edt(~ok, return_indices=True)
+    return pv[ir, ic], ok
 
 
 def pix_points(lift, H, W):
@@ -72,6 +98,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--lift_path', required=True); ap.add_argument('--table_2d', required=True); ap.add_argument('--out_path', required=True)
     ap.add_argument('--target_faces', type=int, default=200000, help='decimated mesh size (~100 k vertices)')
+    ap.add_argument('--pix_map', default='nearest', choices=['nearest', 'triangle'], help='pixel -> decimated vertex: nearest = the vertex '
+                    'nearest (3D) to the ray hit on the full mesh; triangle = of the triangle the ray hits on the decimated mesh (raycast_pix_vertex)')
     ap.add_argument('--gt_path', default=None, help='for the check figure: rows from the centres nearest the GT points')
     ap.add_argument('--check_png', default=None)
     a = ap.parse_args()
@@ -97,14 +125,18 @@ def main():
     keep = np.nonzero(lab == big)[0]
     print(f'[lifted] decimated {len(V0)} -> {len(V)} vertices, {len(F)} faces; {ncomp} components, largest {len(keep)} vertices '
           f'[{time.time() - t0:.0f} s]', flush=True)
-    tree = cKDTree(V[keep])
-
     rows, cols = np.nonzero(safe)
     nodes = p2n[rows, cols]
     assert (nodes >= 0).all() and len(np.unique(nodes)) == len(nodes)
     pix_v = np.empty(len(rows), np.int64)
-    _, nn = tree.query(PP[rows, cols]); pix_v[nodes] = keep[nn]                    # column n -> decimated vertex
-    _, cn = tree.query(PP[coords[:, 0], coords[:, 1]]); cen_v = keep[cn]           # centre i -> decimated vertex
+    if a.pix_map == 'triangle':
+        pv, hit = raycast_pix_vertex(lift, V, F[lab[F[:, 0]] == big], H, W)
+        print(f'[lifted] ray cast on the decimated largest component: missed by {int((safe & ~hit).sum())} mask pixels', flush=True)
+        pix_v[nodes] = pv[rows, cols]; cen_v = pv[coords[:, 0], coords[:, 1]]
+    else:
+        tree = cKDTree(V[keep])
+        _, nn = tree.query(PP[rows, cols]); pix_v[nodes] = keep[nn]                    # column n -> decimated vertex
+        _, cn = tree.query(PP[coords[:, 0], coords[:, 1]]); cen_v = keep[cn]           # centre i -> decimated vertex
     snap = np.linalg.norm(PP[rows, cols] - V[pix_v[nodes]], axis=1)
     print(f'[lifted] pixel -> decimated vertex snap distance: median {np.median(snap):.4f}, max {snap.max():.4f} (mesh extent '
           f'{np.ptp(V, 0).max():.3f})', flush=True)
@@ -128,7 +160,7 @@ def main():
     out = dict(t2)
     out.update({'table': table, 'diagonal': float(table.max()), 'true_diameter_2d': diam,
                 'lifted': {'lift_path': os.path.abspath(a.lift_path), 'table_2d': os.path.abspath(a.table_2d),
-                           'target_faces': a.target_faces, 'pix_map': 'raycast', 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
+                           'target_faces': a.target_faces, 'pix_map': 'raycast' if a.pix_map == 'nearest' else 'raycast_triangle', 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
                            'graph': 'edge-graph Dijkstra on the decimated lifted mesh'}})
     torch.save(out, a.out_path)
     meta = os.path.splitext(a.out_path)[0] + '_meta.json'
