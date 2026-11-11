@@ -136,7 +136,7 @@ lift)
     done
     echo "gpu $g: LIFT LANE DONE [$(date -u +%T)]"
   }
-  for g in $(seq 0 $((NGPU - 1))); do gpu_lane $g > $ST/lift_gpu$g.log 2>&1 & done; wait
+  for g in $(seq 0 $((NGPU - 1))); do gpu_lane $g > $ST/lift_$(hostname)_gpu$g.log 2>&1 & done; wait
   touch $ST/lift.done; echo "LIFT DONE [$(date -u +%T)]" ;;
 
 train)
