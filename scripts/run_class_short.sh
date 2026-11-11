@@ -12,6 +12,7 @@
 #              -> $ST/lift.done when prep is done and nothing is left
 #   ROLE=train (disc image)    NGPU GPUs x LANES workers; every worker walks the WHOLE list (instances are locked per worker, so several
 #              workspaces share it) and trains what has a lift; ends when lift.done exists and nothing is left.
+#              More lanes for a run that is under way: a second call with WTAG=_b (its own log names), e.g. NGPU=3 LANES=1.
 # Kept per instance: inputs, lift (~30 MB), eval_all.json, back-projection, ellipse; pred_f deleted (LEAN=1). Everything is resumable.
 # Assets of the class first: scripts/run_shicclass_setup.sh (+ the 3D geodesic table). State + logs: /workspace/logs/short_<class><RUNTAG>/.
 # Usage: CLASS=horse ROLE=prep PARTS="0" NPART=4 NGPU=1 bash scripts/run_class_short.sh
@@ -162,6 +163,6 @@ train)
     done
     echo "gpu $g worker $w: DONE [$(date -u +%T)]"
   }
-  for g in $(seq 0 $((NGPU - 1))); do for w in $(seq 1 $LANES); do worker $g $w > $ST/train_$(hostname)_gpu${g}_w$w.log 2>&1 & done; done; wait
+  for g in $(seq 0 $((NGPU - 1))); do for w in $(seq 1 $LANES); do worker $g $w > $ST/train_$(hostname)${WTAG:-}_gpu${g}_w$w.log 2>&1 & done; done; wait
   n=$(ls $LROOT/lvis*/stage1_tri/eval_all.json 2>/dev/null | wc -l); echo "TRAIN DONE: $n of $N evaluated [$(date -u +%T)]" ;;
 esac
