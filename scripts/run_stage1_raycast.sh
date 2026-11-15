@@ -16,6 +16,8 @@
 # $G/<class>_lvis<i>_<suffix>_lift.pth. A class without a full run has no 2d_stage1 / lifted_stage1 arm (the eval takes the arms whose
 # pred_f exists) and gets its position colours here. LEAN=1 deletes every pred_f of the run after the eval (~90 MB per arm).
 # ZSBP=1 also back-projects the zero-shot (phase 1) features, $B/lvis<i>_zs_backproj.png (a class without a full run has none).
+# 2026-11-15 (6111: splat vs raycast x no amodal vs amodal in ONE run): an arm may name its own mapping, name=suffix@pixmap
+# (nearest | triangle | splat = lift.py's vertex splat, the 2026-10-27 full run), e.g. ARMS="full_splat=full@splat amodal_tri=amodal@triangle".
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
@@ -72,9 +74,9 @@ for i in ${IDS:?}; do
     if [ -f ${a#*=} ]; then EV+=(--arm $a); fi; done
   declare -A RUN_OF=()                                                  # lift file -> the arm that trained on it
   for a in $ARMS; do
-    ARM=${a%%=*}; LIFT=$G/${CLASS}_${tag}_${a#*=}_lift.pth; P2=$O/$ARM
+    ARM=${a%%=*}; SPEC=${a#*=}; PM=$PIXMAP; [[ $SPEC == *@* ]] && PM=${SPEC#*@}; LIFT=$G/${CLASS}_${tag}_${SPEC%@*}_lift.pth; P2=$O/$ARM
     [ -e $LIFT ] || { echo "lvis$i $ARM: no lift $LIFT, skipped"; continue; }
-    real=$(realpath $LIFT)
+    real=$(realpath $LIFT)@$PM
     if [ -n "${RUN_OF[$real]:-}" ]; then                                # same lift as an earlier arm: reuse its run
       EV+=(--arm $ARM=$O/${RUN_OF[$real]}/alpha/alpha0.5/pred_f.pth)
       [ -f $B/lvis${i}_${ARM}_backproj.png ] || cp $B/lvis${i}_${RUN_OF[$real]}_backproj.png $B/lvis${i}_${ARM}_backproj.png
@@ -83,7 +85,7 @@ for i in ${IDS:?}; do
     RUN_OF[$real]=$ARM
     TL=$O/${tag}_mask_geo_table_${ARM}_seed0.pth
     if [ ! -f $P2/alpha/alpha0.5/pred_f.pth ]; then
-      [ -f ${TL%.pth}_meta.json ] && [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2 --out_path $TL --pix_map $PIXMAP > $O/tablelifted_$ARM.log 2>&1
+      [ -f ${TL%.pth}_meta.json ] && [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2 --out_path $TL --pix_map $PM > $O/tablelifted_$ARM.log 2>&1
       DL=$(python -c "import json; print(json.load(open('${TL%.pth}_meta.json'))['true_diameter_2d'])")
       [ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
           --object_mask_path $d/${tag}_mask.pth --fine_seg_path $d/${tag}_fine_segments.pth --pix_dino_features_path $F \

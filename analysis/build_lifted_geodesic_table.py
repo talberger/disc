@@ -79,9 +79,13 @@ def raycast_pix_vertex(lift, V, F, H, W):
     return pv[ir, ic], ok
 
 
-def pix_points(lift, H, W):
-    """[H, W, 3] world point per pixel for the pixel -> vertex step (raycast_pix_point), pixels the ray misses filled from the nearest one."""
-    P, _ = raycast_pix_point(lift, H, W); has = np.isfinite(P[..., 0])
+def pix_points(lift, H, W, splat=False):
+    """[H, W, 3] world point per pixel for the pixel -> vertex step (raycast_pix_point), pixels the ray misses filled from the nearest one.
+    splat=True: lift.py's vertex splat lift['pix_vertex'] instead (the 2026-10-27 full run; 6111 study, 2026-11-15)."""
+    if splat:
+        pv = lift['pix_vertex'].numpy(); has = pv >= 0; P = lift['vertices'].numpy()[np.maximum(pv, 0)]
+    else:
+        P, _ = raycast_pix_point(lift, H, W); has = np.isfinite(P[..., 0])
     _, (ir, ic) = scipy.ndimage.distance_transform_edt(~has, return_indices=True)
     return P[ir, ic], has
 
@@ -98,8 +102,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--lift_path', required=True); ap.add_argument('--table_2d', required=True); ap.add_argument('--out_path', required=True)
     ap.add_argument('--target_faces', type=int, default=200000, help='decimated mesh size (~100 k vertices)')
-    ap.add_argument('--pix_map', default='nearest', choices=['nearest', 'triangle'], help='pixel -> decimated vertex: nearest = the vertex '
-                    'nearest (3D) to the ray hit on the full mesh; triangle = of the triangle the ray hits on the decimated mesh (raycast_pix_vertex)')
+    ap.add_argument('--pix_map', default='nearest', choices=['nearest', 'triangle', 'splat'], help='pixel -> decimated vertex: nearest = the vertex '
+                    'nearest (3D) to the ray hit on the full mesh; triangle = of the triangle the ray hits on the decimated mesh (raycast_pix_vertex); '
+                    "splat = nearest to lift.py's splatted vertex (the 2026-10-27 full run)")
     ap.add_argument('--gt_path', default=None, help='for the check figure: rows from the centres nearest the GT points')
     ap.add_argument('--check_png', default=None)
     a = ap.parse_args()
@@ -113,7 +118,7 @@ def main():
     assert lift['pix_vertex'].shape == (H, W), (lift['pix_vertex'].shape, safe.shape)
 
     # every safe-mask pixel -> a surface point (pixels with no surface point borrow the nearest pixel that has one)
-    PP, has = pix_points(lift, H, W)
+    PP, has = pix_points(lift, H, W, splat=a.pix_map == 'splat')
     print(f'[lifted] ray cast: mask pixels {int(safe.sum())}, without a surface point {int((safe & ~has).sum())} '
           f'(filled from the nearest one)', flush=True)
 
@@ -160,7 +165,7 @@ def main():
     out = dict(t2)
     out.update({'table': table, 'diagonal': float(table.max()), 'true_diameter_2d': diam,
                 'lifted': {'lift_path': os.path.abspath(a.lift_path), 'table_2d': os.path.abspath(a.table_2d),
-                           'target_faces': a.target_faces, 'pix_map': 'raycast' if a.pix_map == 'nearest' else 'raycast_triangle', 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
+                           'target_faces': a.target_faces, 'pix_map': {'nearest': 'raycast', 'triangle': 'raycast_triangle', 'splat': 'splat'}[a.pix_map], 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
                            'graph': 'edge-graph Dijkstra on the decimated lifted mesh'}})
     torch.save(out, a.out_path)
     meta = os.path.splitext(a.out_path)[0] + '_meta.json'
