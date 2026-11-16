@@ -18,12 +18,14 @@
 # ZSBP=1 also back-projects the zero-shot (phase 1) features, $B/lvis<i>_zs_backproj.png (a class without a full run has none).
 # 2026-11-15 (6111: splat vs raycast x no amodal vs amodal in ONE run): an arm may name its own mapping, name=suffix@pixmap
 # (nearest | triangle | splat = lift.py's vertex splat, the 2026-10-27 full run), e.g. ARMS="full_splat=full@splat amodal_tri=amodal@triangle".
+# 2026-11-16 (horse 147192, where each leg's pixels go zs -> trained): KEEP=1 keeps the per-pixel correspondences ($B/soft_<arm>/) and the
+# features + 2D table (deleted otherwise).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
@@ -39,7 +41,7 @@ backproj() {   # $1 = arm, $2 = its pred_f -> $B/lvis<i>_<arm>_backproj.png (the
       --knn_path $B/soft_$1/${tag}_mask_soft_snap_correspondence.pth --vertex_colors_path $CHK \
       --source_image_path $d/$tag.png --k 1 --save_dir $B --output_path $B/lvis${i}_$1_backproj.png --no_side_by_side >> $B/log.txt 2>&1 \
     || echo "lvis$i backproj $1 FAILED"
-  rm -rf $B/soft_$1
+  [ $KEEP = 1 ] || rm -rf $B/soft_$1
 }
 for i in ${IDS:?}; do
   d=$RUNS/lvis$i; L=$LROOT/lvis$i; O=$L/$OUT; B=$L/backproj; [ $OUT = stage1_ray ] || B=$O/backproj; mkdir -p $O $B; tag=lvis$i
@@ -108,7 +110,7 @@ for i in ${IDS:?}; do
 import json; r = json.load(open('$O/eval_all.json'))['arms']
 print('STAGE1 RAY $i: ' + ' | '.join('%s %.1f' % (a, v['soft_snap']['all']['mean']) for a, v in r.items()))"
   if [ -f $O/meta_2d_fullrun.json ]; then cp $O/meta_2d_fullrun.json $d/${tag}_mask_geo_table_2d_seed0_meta.json; fi
-  rm -f $T2 $F
+  [ $KEEP = 1 ] || rm -f $T2 $F
   if [ $LEAN = 1 ]; then rm -f $O/*/pred_f.pth $O/*/alpha/alpha0.5/pred_f.pth; fi
   rmdir $O/.lock; trap - EXIT
 done
