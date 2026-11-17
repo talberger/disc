@@ -43,6 +43,7 @@ cd $DISC_ROOT && python -m phase2.train_relational_loss \\
 See /workspace/PROJECT_NOTES.md for the full design discussion.
 """
 import argparse
+import numpy as np
 import json
 import os
 import sys
@@ -719,6 +720,20 @@ def train(args):
     # this can't reuse load_pixel_features's per-call disk read here.
     all_pixel_features = torch.load(args.pix_dino_features_path, map_location='cpu')
 
+    # --flip_features_path (Tal, 2026-11-17, bear 6462: the zero-shot picks the same template flank for an image and its left-right
+    # flip, so it is wrong on one of them): features of the image flipped left-right, and the template's mirror map (x -> -x, nearest
+    # vertex). The flip term asks pixel (r, W-1-c) of the flipped image to land on the MIRROR of where pixel (r, c) lands.
+    flip_pixel_features = flip_mirror = None
+    if args.flip_weight > 0:
+        flip_pixel_features = torch.load(args.flip_features_path, map_location='cpu')
+        assert flip_pixel_features.shape == all_pixel_features.shape, (flip_pixel_features.shape, all_pixel_features.shape)
+        from scipy.spatial import cKDTree
+        _vn = vertices.detach().cpu().numpy()
+        _d, _m = cKDTree(_vn).query(_vn * np.array([-1.0, 1.0, 1.0]))
+        flip_mirror = torch.as_tensor(_m, device=device).long()
+        print('FLIP term: weight %g, template mirror map median snap %.5f (template x extent %.4f)'
+              % (args.flip_weight, float(np.median(_d)), float(np.ptp(_vn[:, 0]))))
+
     # --cyc_return_all_pixels (2026-09-10): the cycle's return leg over ALL mask pixels (SHIC as
     # written). Pixel features are gathered in 2D-table COLUMN order, so column j of the table and row j
     # of cyc_all_pixel_features are the same pixel. Both live on the GPU (~2 GB + ~1.7 GB).
@@ -1254,6 +1269,21 @@ def train(args):
 
         loss = args.rkd_spatial_dist_weight * loss
         sdist_loss = loss  # the weighted rkd_spatial_dist term alone -- reference for --rkd_feat_angle2_balance
+
+        if args.flip_weight > 0:
+            # expected template geodesic between mirror(soft map of pixel (r, c)) and the soft map of pixel (r, W-1-c) of the flipped
+            # image, over the template diameter; squared / 2 like the Huber's quadratic branch
+            _fc = coords.clone(); _fc[:, 1] = all_pixel_features.shape[1] - 1 - _fc[:, 1]
+            _, _fti, _fw = soft_map_to_vertices(index_pixel_features(flip_pixel_features, _fc), vertex_features, vertices,
+                                                args.k_vertices_per_pixel, return_topk=True, temperature=args.temperature)
+            _ci, _cw = topk_idx[:num_centers], weights[:num_centers]
+            _g = geo_table_3d[flip_mirror[_ci].unsqueeze(2), _fti.unsqueeze(1)]                    # [n, K, K]
+            _dflip = (_g * _cw.unsqueeze(2) * _fw.unsqueeze(1)).sum((1, 2)) / mu_3D_reference
+            flip_loss = 0.5 * (_dflip ** 2).mean()
+            loss = loss + args.flip_weight * flip_loss
+            if step == 1 or step % args.checkpoint_every == 0:
+                print('    flip term: mean d(mirror(I), flip(I)) %.4f of the diameter, weighted loss %.6f (spatial %.6f)'
+                      % (_dflip.mean().item(), args.flip_weight * flip_loss.item(), sdist_loss.item()))
 
         # --- XSEG cross-segment feature term (Tal, 2026-10-19) ----------------------------------------------
         # The cross-segment suffix of the neighbour axis, which rkd_spatial_dist no longer sees. 'off' skips
@@ -2024,6 +2054,11 @@ if __name__ == '__main__':
                              'cyc_weight), but Tal\'s visual review found correspondence quality '
                              'WORSE despite the wider spread -- more vertices used, not more '
                              'correctly. See modules/vertex_balance_loss.py\'s CONCLUSION note.')
+    parser.add_argument('--flip_features_path', type=str, default=None,
+                        help='pixel features of the image flipped left-right (same extractor), for --flip_weight')
+    parser.add_argument('--flip_weight', type=float, default=0.0,
+                        help='flip consistency (2026-11-17): pixel (r, W-1-c) of the flipped image should map to the mirror of pixel '
+                             '(r, c); 0 = off (byte-identical runs)')
     parser.add_argument('--cyc_weight', type=float, default=0.0,
                         help='Weight for a cycle-consistency term: loss = relational_loss(...) + '
                              'cyc_weight * cycle_consistency_loss(...) -- same additive lambda-'

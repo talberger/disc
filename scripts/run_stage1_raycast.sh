@@ -22,12 +22,13 @@
 # features + 2D table (deleted otherwise).
 # 2026-11-17 (147192: alpha 1 keeps the hind legs apart, alpha 0.5 merges them): XALPHA="1" also exports and evaluates these
 # read-time alphas (arm <arm>_a<alpha>); the back-projection stays alpha 0.5. LORA_RANK (default 4) = --lora_w_rank (give it its own OUT).
+# 2026-11-17 (6462): FLIPW=<w> adds the flip-consistency term (phase2 --flip_weight; flipped-crop features built once).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; FLIPW=${FLIPW:-0}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
@@ -89,6 +90,11 @@ for i in ${IDS:?}; do
     RUN_OF[$real]=$ARM
     TL=$O/${tag}_mask_geo_table_${ARM}_seed0.pth
     if [ ! -f $P2/alpha/alpha0.5/pred_f.pth ]; then
+      FLIP=(); if [ $FLIPW != 0 ]; then                                  # flip consistency: features of the left-right flipped crop
+        FF=$d/${tag}_pix_sdsquare_fuse16_flip.pth
+        [ -f $FF ] || { python -c "from PIL import Image, ImageOps; ImageOps.mirror(Image.open('$d/$tag.png')).save('$d/${tag}_flip.png')"
+          t python analysis/extract_dino_sd_features.py --img_path $d/${tag}_flip.png --save_dir $d --output_path $FF --sd_frame square_pad --cpu_postprocess > $O/features_flip.log 2>&1; }
+        FLIP=(--flip_weight $FLIPW --flip_features_path $FF); fi
       [ -f ${TL%.pth}_meta.json ] && [ -f $TL ] || t python analysis/build_lifted_geodesic_table.py --lift_path $LIFT --table_2d $T2 --out_path $TL --pix_map $PM > $O/tablelifted_$ARM.log 2>&1
       DL=$(python -c "import json; print(json.load(open('${TL%.pth}_meta.json'))['true_diameter_2d'])")
       [ -f $P2/encoder_checkpoint.pth ] || t env PYTHONUNBUFFERED=1 python phase2/train_relational_loss_l2norm.py --obj_path $OBJ --name $NAME --init_encoder_dir $P1 \
@@ -97,7 +103,7 @@ for i in ${IDS:?}; do
           --geo_table_3d_path $GEO3D --geo_table_2d_path $TL \
           --mu_mode learned --mu_scope global_then_segment_aniso --mu_lr 5e-2 --mu_fit_space abs "${NB[@]}" --mu_switch_step 150 --num_iters 149 \
           --cyc_weight 1.676e-05 --cyc_v2 --cyc_temperature 0.05 --cyc_return_all_pixels --cyc_return_stride 3 \
-          --lora_w_rank $LORA_RANK --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints --out_dir $P2 > $P2.train.log 2>&1
+          --lora_w_rank $LORA_RANK --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints ${FLIP[@]+"${FLIP[@]}"} --out_dir $P2 > $P2.train.log 2>&1
       python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
           --lora_checkpoint $P2/encoder_checkpoint.pth --alphas 0.5 $XALPHA --out_dir $P2/alpha > /dev/null
       rm -f $P2/encoder_checkpoint*.pth $TL
