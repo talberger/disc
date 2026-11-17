@@ -1570,7 +1570,8 @@ def train(args):
                             'lora_state': lora_state(encoder) if args.lora_w_rank > 0 else None,
                             'optimizer_state_dict': optimizer.state_dict(),
                             'fourier_basis': get_fourier_basis(encoder),
-                            'step': step, 'loss': loss.item(), 'drift': drift},
+                            'step': step, 'loss': loss.item(), 'drift': drift,
+                            'mu_aniso': None if mu_aniso is None else mu_aniso.detach().cpu()},  # per-step ellipse (probe_pair_loss.py)
                            os.path.join(args.out_dir, 'encoder_checkpoint_step%d.pth' % step))
 
             if args.stop_at_drift is not None and drift < args.stop_at_drift:
