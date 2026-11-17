@@ -45,8 +45,8 @@ def pside(feat, flipped):
 
 p0, mid0 = pside(torch.load(a.features, map_location='cpu'), False)
 p1, mid1 = pside(torch.load(a.features_flipped, map_location='cpu'), True)
-st = lambda p: {'x+ share': float(np.nanmean(p > 0.5)), 'mean p(x+)': float(np.nanmean(p)), 'confidence mean |p-0.5|*2': float(np.nanmean(np.abs(p - 0.5)) * 2)}
-res = {'image': st(p0), 'flipped image (mapped back)': st(p1), 'pixels that change side': float(np.nanmean((p0 > 0.5) != (p1 > 0.5)))}
+st = lambda p: {'x+ share': float(np.mean(p[mask] > 0.5)), 'mean p(x+)': float(np.nanmean(p)), 'confidence mean |p-0.5|*2': float(np.nanmean(np.abs(p - 0.5)) * 2)}
+res = {'image': st(p0), 'flipped image (mapped back)': st(p1), 'pixels that change side': float(np.mean((p0[mask] > 0.5) != (p1[mask] > 0.5)))}
 print(json.dumps(res, indent=1)); json.dump(res, open(os.path.splitext(a.out)[0] + '.json', 'w'), indent=1)
 
 img = np.asarray(Image.open(a.img).convert('RGB'))
