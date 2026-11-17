@@ -90,6 +90,24 @@ def pix_points(lift, H, W, splat=False):
     return P[ir, ic], has
 
 
+_DJ = {}
+def _dj_chunk(idx):
+    return scipy.sparse.csgraph.dijkstra(_DJ['G'], directed=False, indices=idx)[:, _DJ['cols']].astype(np.float32)
+
+
+def dijkstra_cols(G, sources, cols, workers=None):
+    """dijkstra(G, indices=sources)[:, cols] as float32, the sources split over processes (2026-11-17: the lifted table was ~1/3 of a
+    stage-1 instance, single-threaded). Same numbers as one call; DIJKSTRA_WORKERS=1 runs it in this process."""
+    workers = workers or int(os.environ.get('DIJKSTRA_WORKERS', min(4, os.cpu_count() or 1)))
+    _DJ['G'], _DJ['cols'] = G, cols
+    chunks = [c for c in np.array_split(np.asarray(sources), max(1, workers) * 4) if len(c)]
+    if workers <= 1 or len(chunks) <= 1:
+        return np.concatenate([_dj_chunk(c) for c in chunks])
+    import multiprocessing as mp
+    with mp.get_context('fork').Pool(workers) as pool:
+        return np.concatenate(pool.map(_dj_chunk, chunks))
+
+
 def edge_graph(V, F):
     e = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
     e = np.unique(np.sort(e, 1), axis=0)
@@ -147,8 +165,8 @@ def main():
           f'{np.ptp(V, 0).max():.3f})', flush=True)
 
     uc, inv = np.unique(cen_v, return_inverse=True)
-    D = scipy.sparse.csgraph.dijkstra(G, directed=False, indices=uc)            # [unique centres, V]
-    table = torch.from_numpy(D[inv][:, pix_v].astype(np.float32))               # [2048, M]
+    D = dijkstra_cols(G, uc, pix_v)                                             # [unique centres, M]
+    table = torch.from_numpy(D[inv])                                            # [2048, M]
     assert torch.isfinite(table).all(), 'a pixel landed off the largest component'
     print(f'[lifted] table {tuple(table.shape)} from {len(uc)} unique centre vertices [{time.time() - t0:.0f} s]', flush=True)
 
