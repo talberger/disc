@@ -39,6 +39,6 @@ python analysis/eval_lvis_ours.py --run_dir $d --tag $tag --obj_path $OBJ --name
 python -c "import json; r = json.load(open('$O/eval_traj.json'))['arms']; print('EVAL ' + ' | '.join('%s %.1f' % (a, v['soft_snap']['all']['mean']) for a, v in r.items()))"
 python analysis/probe_pair_loss.py --run_dir $P2 --phase1_dir $P1 --obj_path $OBJ --name shic_horse --features $F \
     --mask $d/${tag}_mask.pth --lift $LIFT --geo_table_3d $GEO3D --geo_diag_2d $DL \
-    --pixel rep=200,38 --pixel same=235,30 --pixel other=205,62 --region near=185:215:31:45+215:245:22:40 --region far=185:248:54:84 \
+    --pixel rep=222,27 --pixel same=244,32 --pixel other=222,62 --region near=216:250:20:40 --region far=175:250:50:86 \
     --out_json $O/probe_hind.json
 echo "PROBE DONE"

@@ -93,8 +93,8 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   not give amodal 48.9, the rebuilt fine segments differ: say so before reading the probe.**
 - **NEXT (pod):** `/start-work`, then `bash scripts/run_probe_hind147192.sh > /workspace/logs/probe_hind147192.log 2>&1` (setsid nohup, ~20-30 min),
   then the figure: lift + template with the paths rep->same / rep->other at zs and trained, and curves student vs teacher per step for both
-  pairs and both regions. Pixels (row, col) in the 400-px crop: rep 200,38 (near hind cannon), same 235,30, other 205,62 (far hind cannon);
-  regions near = 185:215,31:45 + 215:245,22:40, far = 185:248,54:84 (check them on the image first). Points-on-mesh figures: the
+  pairs and both regions. Pixels (row, col) in the 400-px crop: rep 222,27 (near hind cannon), same 244,32, other 222,62 (far hind cannon);
+  regions near = 216:250,20:40, far = 175:250,50:86 (check them on the image first). Points-on-mesh figures: the
   `demo/shic/colored_mesh/horse_mesh_checker16_uv_color.ply` checker, vertices in OBJ file order (open3d reorders them).
   SYNC TO MAC: data/densepose_lvis/lifted_horse/lvis147192/stage1_legs/probe_hind.json data/densepose_lvis/lifted_horse/lvis147192/stage1_legs/eval_traj.json
 - Also open: SAM 3D Objects access still pending on HF (Mac poller); when granted, run it on 6111 and 188037.
