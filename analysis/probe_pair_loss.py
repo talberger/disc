@@ -140,7 +140,7 @@ for step, ck in [(0, None)] + [(int(re.findall(r'step(\d+)', p)[0]), p) for p in
           + f'  [rep -> {row["leg"][rep]}]' + ('' if not rn else '  ' + '  '.join(f'{k} s/t {v["student"]:.3f}/{v["teacher"]:.3f}' for k, v in row['regions'].items())), flush=True)
 # template paths rep -> others at the first and last step (top-1 vertices)
 _, predT = scipy.sparse.csgraph.dijkstra(GT, directed=False, indices=[res['steps'][0]['top1'][rep], res['steps'][-1]['top1'][rep]], return_predecessors=True)
-res['template_path'] = {tag: {n: path(predT[i], res['steps'][j]['top1'][rep], res['steps'][j]['top1'][n]) for n in names[1:]}
+res["template_path"] = {tag: {n: [int(v) for v in path(predT[i], res['steps'][j]['top1'][rep], res["steps"][j]["top1"][n])] for n in names[1:]}
                         for i, (tag, j) in enumerate((('zs', 0), ('trained', -1)))}
 res['lift_pix_vertex'] = {n: V[pv[pix[n]]].tolist() for n in names}
 json.dump(res, open(a.out_json, 'w'))
