@@ -43,6 +43,9 @@ enc = EncoderL2Norm(args.depth, args.width, out_dim=args.n_classes, positional_e
                     sigma=args.sigma, network_verbose=0).to(device)
 set_fourier_basis(enc, lc.get('fourier_basis'))
 os.makedirs(args.out_dir, exist_ok=True)
+# the LoRA delta alone (~1 MB, 2026-11-17): any read-time alpha can be exported later without retraining (the runs delete the
+# full checkpoint); rebuild with merge_lora_into_state_dict(phase-1 state, this, alpha) + the saved Fourier basis
+torch.save({'lora_state': lc['lora_state'], 'fourier_basis': lc.get('fourier_basis')}, os.path.join(args.out_dir, 'lora_state.pth'))
 with torch.no_grad():
     for a in args.alphas:
         load_state_dict(enc, merge_lora_into_state_dict(p1['encoder_state_dict'], lc['lora_state'], a))
