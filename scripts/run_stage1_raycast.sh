@@ -14,7 +14,7 @@
 # the ray hits, never the inner skin); give it its own OUT (e.g. OUT=stage1_tri: runs, tables, eval_all.json and backproj/ all under it).
 # 2026-11-11 (other classes, scripts/run_class_short.sh): CLASS=horse|elephant with its own RUNS (inputs) and LROOT (outputs); lifts are
 # $G/<class>_lvis<i>_<suffix>_lift.pth. A class without a full run has no 2d_stage1 / lifted_stage1 arm (the eval takes the arms whose
-# pred_f exists) and gets its position colours here. LEAN=1 deletes every pred_f of the run after the eval (~90 MB per arm).
+# pred_f exists) and gets its position colours here. LEAN=1 deletes every pred_f of the run after the eval (~90 MB per arm and alpha; the LoRA delta lora_state.pth stays).
 # ZSBP=1 also back-projects the zero-shot (phase 1) features, $B/lvis<i>_zs_backproj.png (a class without a full run has none).
 # 2026-11-15 (6111: splat vs raycast x no amodal vs amodal in ONE run): an arm may name its own mapping, name=suffix@pixmap
 # (nearest | triangle | splat = lift.py's vertex splat, the 2026-10-27 full run), e.g. ARMS="full_splat=full@splat amodal_tri=amodal@triangle".
@@ -120,7 +120,7 @@ import json; r = json.load(open('$O/eval_all.json'))['arms']
 print('STAGE1 RAY $i: ' + ' | '.join('%s %.1f' % (a, v['soft_snap']['all']['mean']) for a, v in r.items()))"
   if [ -f $O/meta_2d_fullrun.json ]; then cp $O/meta_2d_fullrun.json $d/${tag}_mask_geo_table_2d_seed0_meta.json; fi
   [ $KEEP = 1 ] || rm -f $T2 $F
-  if [ $LEAN = 1 ]; then rm -f $O/*/pred_f.pth $O/*/alpha/alpha0.5/pred_f.pth; fi
+  if [ $LEAN = 1 ]; then rm -f $O/*/pred_f.pth $O/*/alpha/alpha*/pred_f.pth; fi
   rmdir $O/.lock; trap - EXIT
 done
 echo "ALL STAGE1 RAY DONE"
