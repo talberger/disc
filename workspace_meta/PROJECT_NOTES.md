@@ -69,6 +69,36 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## STATE AT CLOSE — 2026-11-17 (MAC; Run:ai unreachable: TAU VPN fails "Matching client config not found") — HAND-OFF TO A RUNPOD POD: HORSE 147192 HIND-LEG PROBE. **NOTHING IS RUNNING; gpu1x STOPPED (Tal's OK).**
+- **Why a pod:** since 11-17 the TAU VPN (GlobalProtect) fails at the gateway for user tb1 with "Matching client config not found" (portal login
+  works; the client now uses SAML, which it did not in the last good connection on 11-09). Without the VPN, `runai workspace exec` times out.
+  Tal is asking TAU IT. Until that is fixed: RunPod (VPN off).
+- **Symmetry findings so far (11-16/17, Mac + Run:ai):** a GT-free test (ours vs SHIC and vs mirror(SHIC), templates mirror-symmetric about x=0)
+  on the 30 worst: about 1/5 of the points are left/right flips and they cause about 1/4 of the gap to SHIC. Tal confirmed real flips in bear 6462,
+  horse 6054 / 176347 / 188037 / 169707 / 205703 / 147192, elephant 171350 / 64251 / 175138, bear 4777 (mostly local leg swaps). 6462's GT
+  labels are wrong in the DensePose-LVIS annotation itself.
+- **Horse 147192 (zs 19.0, amodal stage 1 48.9; point 2: zs 7 -> trained 77):** the lift and the teacher look fine (front legs 0.35 of the
+  diameter apart, ellipse about round). One colour per template leg (`analysis/leg_colorings.py`): zs maps both hind legs to the x- hind leg
+  and both front legs to x- front; training separates the FRONT legs but swaps them; the hind legs stay merged. **Tal's question:** the lift
+  separates the hind legs, so why does training not? Look at one hind-leg pixel against a neighbour in the same leg and one in the other leg:
+  the loss per step, and the geodesic paths on the lift and on the template.
+- **Code (commit on top of ce3d302):** `analysis/probe_pair_loss.py` (per checkpoint: student d_3D/D3/s vs teacher d_2D/D2 for each pair and
+  for two image regions, top-1 template leg per pixel, lift + template paths -> json); `phase2/train_relational_loss.py` step checkpoints
+  now also save `mu_aniso`; `scripts/run_probe_hind147192.sh` (rebuilds what the volume lacks, retrains 147192 seed 0 with
+  `--checkpoint_every 10`, checks the eval reproduces zs 19.0 / amodal 48.9, runs the probe).
+- **Inputs put on the volume from the Mac (11-17, S3):** `data/densepose_lvis/runs_horse_poly/lvis147192/` (png, mask, gt, 2D meta),
+  `/workspace/pixal3d_out/geom_full/horse_lvis147192_amodal_lift.pth`, `data/densepose_lvis/lifted_horse/lvis147192/stage1_tri/*_meta.json`.
+  Already on the volume: horse obj, `experiments/shic_horse/` phase 1 + geo table 3d, `eval_shic_horse/horse_heat_geodesics_228.npy`, SAM vit_h.
+  NOT on the volume: the Run:ai fine segments, features and 2D table; the script rebuilds them with the original commands. **If the eval does
+  not give amodal 48.9, the rebuilt fine segments differ: say so before reading the probe.**
+- **NEXT (pod):** `/start-work`, then `bash scripts/run_probe_hind147192.sh > /workspace/logs/probe_hind147192.log 2>&1` (setsid nohup, ~20-30 min),
+  then the figure: lift + template with the paths rep->same / rep->other at zs and trained, and curves student vs teacher per step for both
+  pairs and both regions. Pixels (row, col) in the 400-px crop: rep 200,38 (near hind cannon), same 235,30, other 205,62 (far hind cannon);
+  regions near = 185:215,31:45 + 215:245,22:40, far = 185:248,54:84 (check them on the image first). Points-on-mesh figures: the
+  `demo/shic/colored_mesh/horse_mesh_checker16_uv_color.ply` checker, vertices in OBJ file order (open3d reorders them).
+  SYNC TO MAC: data/densepose_lvis/lifted_horse/lvis147192/stage1_legs/probe_hind.json data/densepose_lvis/lifted_horse/lvis147192/stage1_legs/eval_traj.json
+- Also open: SAM 3D Objects access still pending on HF (Mac poller); when granted, run it on 6111 and 188037.
+
 ## 2026-11-08/09 (MAC driving Run:ai `tberger3-disc-gpu3` + `pixal3d-env2`) — SPLAT BUG FIXED (RAYCAST); 32412 = THE AMODAL-BEFORE-LIFT EXAMPLE; AMODAL + LIFT ON ALL 132 BEARS: NO MEAN GAIN (done 2026-11-10 04:12)
 Obsidian: `Experiments/2026-10-26 Pixal3D lifted geodesics.md` (sections "באג: פיקסל ממופה לגב" .. "בריצה").
 - **Bug:** `lift.py`'s pix_vertex is a VERTEX splat -> a front pixel with no front vertex in it takes a BACK vertex (171627: 12.6% of the
