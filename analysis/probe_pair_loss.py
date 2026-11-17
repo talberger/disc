@@ -39,6 +39,7 @@ ap.add_argument('--region', action='append', default=[], help='NAME=r0:r1:c0:c1[
 ap.add_argument('--n_region', type=int, default=150, help='sampled pixels per region')
 ap.add_argument('--k', type=int, default=10); ap.add_argument('--temperature', type=float, default=0.01)
 ap.add_argument('--seed', type=int, default=0)
+ap.add_argument('--alpha', type=float, default=1.0, help='W_phase1 + alpha * LoRA: 1 = what the loss trains, 0.5 = what the eval exports')
 a = ap.parse_args()
 rng = np.random.default_rng(a.seed)
 
@@ -111,7 +112,10 @@ set_fourier_basis(enc, torch.load(cks[0], map_location='cpu').get('fourier_basis
 P = np.array([pix[n] for n in names])
 for step, ck in [(0, None)] + [(int(re.findall(r'step(\d+)', p)[0]), p) for p in cks]:
     c = None if ck is None else torch.load(ck, map_location=device)
-    load_state_dict(enc, p1['encoder_state_dict'] if c is None else c['encoder_state_dict'])
+    sd = p1['encoder_state_dict'] if c is None else c['encoder_state_dict']
+    if c is not None and a.alpha != 1.0:                 # merged = W1 + BA, so W1 + alpha BA = W1 + alpha (merged - W1)
+        sd = {k: (p1['encoder_state_dict'][k] + a.alpha * (v - p1['encoder_state_dict'][k]) if v.is_floating_point() else v) for k, v in sd.items()}
+    load_state_dict(enc, sd)
     mu = torch.zeros(1, 3) if c is None or c.get('mu_aniso') is None else c['mu_aniso'][-1:].cpu()   # zeros = the init circle s=1
     with torch.no_grad():
         vf = enc(verts)
