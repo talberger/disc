@@ -45,7 +45,7 @@ td.num { font-family: var(--mono); }
 .card .head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; } .card .id { font-weight: 600; } .card .d { font-family: var(--mono); color: var(--muted); }
 .card .cap { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: __GAPPCT__%; font-size: 13px; color: var(--muted); } .cap b { font-family: var(--mono); font-weight: 400; color: var(--fg); }
 .cap .win, .cap .win b { color: var(--good); font-weight: 600; }
-.card img { width: 100%; height: auto; display: block; }
+.card img { width: 100%; height: auto; display: block; } .card .sp { overflow: hidden; }   /* packed: several instances in one file (a page holds at most ~510 files) */
 </style>
 <div class="wrap">
   <div class="read">
@@ -75,7 +75,8 @@ function draw() {
     const best = Math.min(r.s, r.o, r.o1), w = v => v === best ? 'win' : '';
     return `<div class="card"><div class="head"><span class="id">lvis ${r.id}</span><span class="d">α 0.5 − SHIC ${sg(r.o - r.s)} · α 1 − SHIC ${sg(r.o1 - r.s)}</span></div>` +
       `<div class="cap"><span>image</span><span class="${w(r.s)}">SHIC <b>${f1(r.s)}</b></span><span class="${w(r.o)}">α 0.5 <b>${f1(r.o)}</b></span><span class="${w(r.o1)}">α 1 <b>${f1(r.o1)}</b></span></div>` +
-      `<img loading="lazy" width="__SW__" height="${r.h}" alt="lvis ${r.id}: image, SHIC, ours alpha 0.5, ours alpha 1" src="img/lvis${r.id}.webp"></div>`;
+      (r.pk === undefined ? `<img loading="lazy" width="__SW__" height="${r.h}" alt="lvis ${r.id}: image, SHIC, ours alpha 0.5, ours alpha 1" src="img/lvis${r.id}.webp">`
+       : `<div class="sp" style="aspect-ratio: __SW__ / ${r.h}"><img loading="lazy" width="__SW__" height="${r.ph}" style="transform: translateY(-${100 * r.top / r.ph}%)" alt="lvis ${r.id}: image, SHIC, ours alpha 0.5, ours alpha 1" src="pk/p${r.pk}.webp"></div>`) + '</div>';
   }).join('');
   document.querySelectorAll('#btns button').forEach(b => { const on = b.dataset.k === key; b.setAttribute('aria-pressed', on); b.textContent = b.dataset.t + (on ? (desc ? ' ↓' : ' ↑') : ''); });
   document.getElementById('count').textContent = R.length + ' instances, green = the best of the three';
@@ -108,8 +109,22 @@ def strips(cls, out):
     print(f'{cls}: {len(data)} instances -> {out}')
 
 
-def page(cls, out):
+def pack(out, data, n):
+    """Stack every n instance strips into one file, pk/p<k>.webp; each record gets its file and its top offset (px)."""
+    from PIL import Image
+    os.makedirs(f'{out}/pk', exist_ok=True)
+    for k in range(0, len(data), n):
+        g = data[k:k + n]; ims = [Image.open(f'{out}/img/lvis{r["id"]}.webp') for r in g]
+        sheet = Image.new('RGBA', (ims[0].width, sum(im.height for im in ims)), (0, 0, 0, 0)); y = 0
+        for r, im in zip(g, ims):
+            sheet.paste(im, (0, y)); r.update(pk=k // n, top=y); y += im.height
+        for r in g: r['ph'] = y
+        sheet.save(f'{out}/pk/p{k // n}.webp', quality=78)
+
+
+def page(cls, out, n_pack=1):
     data = json.load(open(f'{out}/data.json'))
+    if n_pack > 1: pack(out, data, n_pack)
     kw = key_views(f'demo/shic/colored_mesh/{CLS[cls][2]}', out)
     S, O, O1 = (np.array([r[k] for r in data]) for k in ('s', 'o', 'o1'))
     rep = dict(TITLE=cls + 's', N=len(data), SM=f'{S.mean():.1f}', OM=f'{O.mean():.1f}', O1M=f'{O1.mean():.1f}',
@@ -128,6 +143,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--cls', required=True, choices=list(CLS)); ap.add_argument('--out', required=True)
     ap.add_argument('--strips', action='store_true'); ap.add_argument('--page', action='store_true')
+    ap.add_argument('--pack', type=int, default=1, help='instances per image file (a class over ~500 instances needs 2)')
     a = ap.parse_args()
     if a.strips: strips(a.cls, a.out)
-    if a.page: page(a.cls, a.out)
+    if a.page: page(a.cls, a.out, a.pack)
