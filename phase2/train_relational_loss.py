@@ -1039,6 +1039,9 @@ def train(args):
         # LORA-W (2026-09-17, Tal): freeze the whole phase-1 encoder, train only a rank-r update B A on
         # the chosen Linear layers (modules/lora.py). B starts at 0, so step 0 == phase-1 exactly.
         wrapped = apply_lora_w(encoder, args.lora_w_rank, args.lora_w_layers)
+        for m in encoder.modules():                                     # 2026-11-18 (Tal): train with W + alpha * BA
+            if hasattr(m, 'lora_A'):
+                m.alpha = args.lora_w_train_alpha
         trainable = [p for p in encoder.parameters() if p.requires_grad]
         with torch.no_grad():
             d0 = feature_drift(encoder(vertices), phase1_features)
@@ -1087,7 +1090,7 @@ def train(args):
             if not args.no_step_checkpoints or args.save_stageA_end:
                 # END OF STAGE A (2026-10-06, Tal: back-projection after stage 1): the encoder and the global ellipse
                 # exactly as stage A left them, before the first stage-B step. Same keys as a step checkpoint.
-                torch.save({'encoder_state_dict': (merged_state_dict(encoder) if args.lora_w_rank > 0
+                torch.save({'encoder_state_dict': (merged_state_dict(encoder, args.lora_w_train_alpha) if args.lora_w_rank > 0
                                                    else encoder.state_dict()),
                             'lora_state': lora_state(encoder) if args.lora_w_rank > 0 else None,
                             'fourier_basis': get_fourier_basis(encoder), 'step': step - 1},
@@ -1595,7 +1598,7 @@ def train(args):
                      sang_str, drift))
 
             if not args.no_step_checkpoints:
-                torch.save({'encoder_state_dict': (merged_state_dict(encoder) if args.lora_w_rank > 0
+                torch.save({'encoder_state_dict': (merged_state_dict(encoder, args.lora_w_train_alpha) if args.lora_w_rank > 0
                                                    else encoder.state_dict()),
                             'lora_state': lora_state(encoder) if args.lora_w_rank > 0 else None,
                             'optimizer_state_dict': optimizer.state_dict(),
@@ -1611,7 +1614,7 @@ def train(args):
 
     # Final artifacts, mirroring phase 1's / train_mapping_loss.py's layout so
     # the analysis scripts can consume this checkpoint exactly like theirs.
-    torch.save({'encoder_state_dict': (merged_state_dict(encoder) if args.lora_w_rank > 0
+    torch.save({'encoder_state_dict': (merged_state_dict(encoder, args.lora_w_train_alpha) if args.lora_w_rank > 0
                                                else encoder.state_dict()),
                         'lora_state': lora_state(encoder) if args.lora_w_rank > 0 else None,
                 'optimizer_state_dict': optimizer.state_dict(),
@@ -1993,6 +1996,9 @@ if __name__ == '__main__':
                              '(W + BA) under encoder_state_dict plus the raw update under lora_state. 0 = off.')
     parser.add_argument('--lora_w_layers', choices=['last', 'all'], default='last',
                         help='LORA-W: wrap only the output Linear (feature change has rank <= r) or all Linears.')
+    parser.add_argument('--lora_w_train_alpha', type=float, default=1.0,
+                        help='LORA-W: alpha of W + alpha * BA during TRAINING (2026-11-18, Tal: train at the alpha the matching '
+                             'reads at). lora_state keeps the raw A, B, so export_pred_f_lora_alpha.py --alphas <this> reads it as trained.')
     parser.add_argument('--lora_w_lr', type=float, default=1e-3,
                         help='LORA-W: Adam lr for the LoRA parameters (replaces --lr for the encoder).')
     parser.add_argument('--mu_lr', type=float, default=1e-2,
