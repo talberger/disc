@@ -30,7 +30,7 @@ set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; FLIPW=${FLIPW:-0}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; LORA_L2=${LORA_L2:-0}; FLIPW=${FLIPW:-0}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
@@ -105,7 +105,7 @@ for i in ${IDS:?}; do
           --geo_table_3d_path $GEO3D --geo_table_2d_path $TL \
           --mu_mode learned --mu_scope global_then_segment_aniso --mu_lr 5e-2 --mu_fit_space abs "${NB[@]}" --mu_switch_step 150 --num_iters 149 \
           --cyc_weight 1.676e-05 --cyc_v2 --cyc_temperature 0.05 --cyc_return_all_pixels --cyc_return_stride 3 \
-          --lora_w_rank $LORA_RANK --lora_w_train_alpha $LORA_TALPHA --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints ${FLIP[@]+"${FLIP[@]}"} --out_dir $P2 > $P2.train.log 2>&1
+          --lora_w_rank $LORA_RANK --lora_w_train_alpha $LORA_TALPHA --lora_w_l2 $LORA_L2 --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints ${FLIP[@]+"${FLIP[@]}"} --out_dir $P2 > $P2.train.log 2>&1
       python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
           --lora_checkpoint $P2/encoder_checkpoint.pth --alphas 0.5 $XALPHA --out_dir $P2/alpha > /dev/null
       rm -f $P2/encoder_checkpoint*.pth $TL

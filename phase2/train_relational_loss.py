@@ -1537,6 +1537,11 @@ def train(args):
                     args.k_vertices_per_pixel, center_geo_dist)
             loss = loss + args.cyc_weight * cyc_loss
 
+        if args.lora_w_l2 > 0.0:   # 2026-11-18 (Tal): L2-SP-style pull toward phase-1, so the matching reads at the trained alpha
+            dw_l2 = sum((args.lora_w_train_alpha * m.delta_weight()).pow(2).sum()
+                        for m in encoder.modules() if hasattr(m, 'lora_A'))
+            loss = loss + args.lora_w_l2 * dw_l2
+
         loss.backward()
 
         if step == 1:
@@ -1595,7 +1600,8 @@ def train(args):
                   'drift(cos vs phase 1) %.4f'
                   % (step, args.num_iters, loss.item(), mu_2D, mu_3D_live,
                      ref_2D_str, ref_3D_str, cyc_str, bal_str, feat_str, anc_str, dist_str, mu_str,
-                     sang_str, drift))
+                     sang_str, drift)
+                  + ('  dw_l2 %.4f' % dw_l2.item() if args.lora_w_l2 > 0.0 else ''))
 
             if not args.no_step_checkpoints:
                 torch.save({'encoder_state_dict': (merged_state_dict(encoder, args.lora_w_train_alpha) if args.lora_w_rank > 0
@@ -1999,6 +2005,9 @@ if __name__ == '__main__':
     parser.add_argument('--lora_w_train_alpha', type=float, default=1.0,
                         help='LORA-W: alpha of W + alpha * BA during TRAINING (2026-11-18, Tal: train at the alpha the matching '
                              'reads at). lora_state keeps the raw A, B, so export_pred_f_lora_alpha.py --alphas <this> reads it as trained.')
+    parser.add_argument('--lora_w_l2', type=float, default=0.0,
+                        help='LORA-W: weight of sum_layers ||alpha * BA||_F^2 in the loss (2026-11-18, Tal: shrink toward phase-1 in '
+                             'training instead of reading at alpha 0.5). 0 = off.')
     parser.add_argument('--lora_w_lr', type=float, default=1e-3,
                         help='LORA-W: Adam lr for the LoRA parameters (replaces --lr for the encoder).')
     parser.add_argument('--mu_lr', type=float, default=1e-2,
