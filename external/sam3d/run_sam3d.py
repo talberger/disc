@@ -16,10 +16,17 @@ from PIL import Image
 
 ap = argparse.ArgumentParser(); ap.add_argument('--jobs', required=True); ap.add_argument('--out_dir', required=True)
 ap.add_argument('--seed', type=int, default=42); ap.add_argument('--layout_post', type=int, default=1, help='SAM 3D layout post-optimisation (fits the pose to mask + pointmap)')
+ap.add_argument('--align_steps', default='', help='2026-11-20 (Tal, bear 6111 IoU 0.67): turn on SAM 3D\'s own layout steps that its pipeline '
+                'hard-codes off (inference_pipeline_pointmap.py run_post_optimization_GS): comma list of manual (pointmap alignment), icp, occlusion')
 a = ap.parse_args(); os.makedirs(a.out_dir, exist_ok=True)
 sys.path.append('notebook'); from inference import Inference
 
 t0 = time.time(); inf = Inference('checkpoints/hf/pipeline.yaml', compile=False); print(f'[sam3d] model loaded [{time.time() - t0:.0f} s]', flush=True)
+if a.align_steps:
+    on = {'manual': 'Enable_manual_alignment', 'icp': 'Enable_shape_ICP', 'occlusion': 'Enable_occlusion_check'}
+    flags = {on[s]: True for s in a.align_steps.split(',')}; _gs = inf._pipeline.layout_post_optimization_method_GS
+    inf._pipeline.layout_post_optimization_method_GS = lambda *p, **k: _gs(*p, **{**k, **flags})
+    print(f'[sam3d] layout steps on: {flags}', flush=True)
 for line in open(a.jobs):
     if not line.strip(): continue
     tag, img, msk = line.split()[:3]; out = os.path.join(a.out_dir, f'{tag}_sam3d_raw.npz')
