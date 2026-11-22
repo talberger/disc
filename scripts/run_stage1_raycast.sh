@@ -24,13 +24,14 @@
 # read-time alphas (arm <arm>_a<alpha>); the back-projection stays alpha 0.5. LORA_RANK (default 4) = --lora_w_rank (give it its own OUT).
 # 2026-11-18: LORA_TALPHA (default 1) = the alpha of W + alpha * BA during training (--lora_w_train_alpha); give it its own OUT and
 # put it in XALPHA to read the run at the alpha it was trained with (0.5 is always exported).
+# 2026-11-22: BPALPHA (default 0.5) = the read-time alpha of the back-projection; the main recipe reads at 1 (BPALPHA=1 XALPHA="1").
 # 2026-11-17 (6462): FLIPW=<w> adds the flip-consistency term (phase2 --flip_weight; flipped-crop features built once).
 # Usage: IDS="171627 186446 32412 109595" [ARMS="lifted_ray=full lifted_amodal=amodal"] [PIXMAP=triangle OUT=stage1_tri] bash scripts/run_stage1_raycast.sh
 set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; LORA_L2=${LORA_L2:-0}; FLIPW=${FLIPW:-0}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; LORA_L2=${LORA_L2:-0}; BPALPHA=${BPALPHA:-0.5}; FLIPW=${FLIPW:-0}
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
@@ -112,7 +113,7 @@ for i in ${IDS:?}; do
     fi
     EV+=(--arm $ARM=$P2/alpha/alpha0.5/pred_f.pth)
     for x in $XALPHA; do EV+=(--arm ${ARM}_a$x=$P2/alpha/alpha$x/pred_f.pth); done
-    [ -f $B/lvis${i}_${ARM}_backproj.png ] || backproj $ARM $P2/alpha/alpha0.5/pred_f.pth
+    [ -f $B/lvis${i}_${ARM}_backproj.png ] || backproj $ARM $P2/alpha/alpha$BPALPHA/pred_f.pth   # BPALPHA must be 0.5 or in XALPHA
   done
   unset RUN_OF
   python analysis/eval_lvis_ours.py --run_dir $d --tag $tag --obj_path $OBJ --name $NAME --geodesics_path $GEO228 --out_json $O/eval_all.json \
