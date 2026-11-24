@@ -15,9 +15,9 @@ Their transform is `Resize((224, 224))` -- NOT aspect preserving. To get corresp
 photo's own resolution the [16, 224, 224] map is bilinearly upsampled back to (H, W), which is the
 continuous version of the notebook's own `x * 224 / w` index mapping.
 
-The mask comes from the PNG's ALPHA channel when it has one (SHIC's demo images are RGBA cutouts),
-otherwise from --mask_path. Alpha is used as-is rather than re-segmenting, so the object extent is
-theirs, not ours.
+The mask comes from --mask_path, else from the PNG's ALPHA channel if it is a real cutout. NOTE (checked
+2026-11-24): SHIC's demo images are RGBA but fully OPAQUE (0 transparent pixels) -- they are NOT cutouts, and
+SHIC itself has no foreground head; their paper uses masks only to sample training points. So pass --mask_path.
 
 Run:
   python analysis/shic_infer_correspondence.py --class_name bear \

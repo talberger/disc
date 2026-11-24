@@ -262,9 +262,9 @@ if __name__ == '__main__':
                              'flat --background_color fill (e.g. the original --img_path). Must '
                              'match the mask\'s [H, W]. Ignored if --transparent_background is set '
                              '(alpha already makes the background invisible there).')
-    parser.add_argument('--overlay_alpha', type=float, default=1.0,
+    parser.add_argument('--overlay_alpha', type=float, default=0.7,
                          help='2026-11-24: opacity of the colours inside the mask over --source_image_path '
-                             '(1 = opaque, the old look; e.g. 0.6 lets the photo show through, like SHIC)')
+                             '(default 0.7, chosen 2026-11-24; 1 = opaque, the old look)')
     parser.add_argument('--background_color', nargs=3, type=int, default=[255, 255, 255],
                          help='RGB for pixels outside the mask (ignored if --source_image_path is set)')
     parser.add_argument('--transparent_background', type=int, default=None,

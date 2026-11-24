@@ -4,7 +4,10 @@ painted canonical mesh, the key to the back-projection colours (Tal, 2026-11-11,
 --ours "<png under lvis<i>/ ({i} = id)>|<eval json under lvis<i>/>|<arm>": the arm shown as "ours" (default: amodal + the double-shell fix).
 index.html is page CONTENT only (the Artifact tool wraps it); bears/lvis<i>.webp = the three panels side by side, transparent gaps.
 """
-import argparse, glob, json, os
+import argparse, glob, json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from analysis.reblend_backproj import reblend
+OVERLAY_ALPHA = 0.7   # 2026-11-24 (Tal): see-through backproj colours
 import numpy as np
 
 VIEWS = (('side', (1, 0, 0), (0, 1, 0)), ('other side', (-1, 0, 0), (0, 1, 0)), ('front', (0, 0, -1), (0, 1, 0)), ('back', (0, 0, 1), (0, 1, 0)), ('top', (0, -1, 0), (0, 0, 1)))
@@ -108,6 +111,7 @@ def main():
     for d in sorted(glob.glob(os.path.join(a.root, 'lvis*')), key=lambda d: int(os.path.basename(d)[4:])):
         i = os.path.basename(d)[4:]; s = json.load(open(os.path.join(d, js)))['arms'][arm]['soft_snap']
         ims = [Image.open(p).convert('RGB') for p in (f'{a.src}/lvis{i}/lvis{i}.png', f'{d}/backproj/lvis{i}_SHIC_backproj.png', os.path.join(d, png.format(i=i)))]
+        ph = np.asarray(ims[0]); ims[1:] = [Image.fromarray(reblend(np.asarray(im), ph, OVERLAY_ALPHA)) for im in ims[1:]]   # 2026-11-24: see-through colours
         h = round(W * ims[0].height / ims[0].width); strip = Image.new('RGBA', (3 * W + 2 * GAP, h), (0, 0, 0, 0))
         for k, im in enumerate(ims): strip.paste(im.resize((W, h), Image.LANCZOS), (k * (W + GAP), 0))
         strip.save(os.path.join(a.out, 'bears', f'lvis{i}.webp'), quality=80); data.append(dict(id=i, n=int(i), s=shic[i], o=round(s['all']['mean'], 2), h=h))

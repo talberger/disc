@@ -77,6 +77,11 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   LoRA train + read alpha 1 with the L2-SP penalty lambda_W 3e-4; 149 iterations; overview figure updated; bib Pixal3D / pix2gestalt / L2-SP.
   Open `\tal{}`: global-ellipse figure, remake the loss figure with a lifted path, runtime, cycle ablation.
 - **REMIND TAL: read the method update** (changes-only PDF: latexdiff, new = blue, removed = small red). Not in the paper yet by Tal's choice: SAM 3D.
+- **Itai tasks 2+3 (same day, later):** SHIC masks, from their paper (arXiv 2407.18907): f_I(u) "undefined" off the object mask (Sec 3.1); masks
+  only to sample 100 foreground training points (supp: "as not to try matching background points to the shape"); masks from Grounding DINO for
+  novel classes; no foreground head; Fig 6 caption says nothing about masks. Their repo demo PNGs are RGBA but fully opaque (not cutouts).
+  => the model cannot tell background; their dense figures must use an external mask (our inference). Transparency: `--overlay_alpha` (default
+  0.7) in color_image_from_knn.py, `analysis/reblend_backproj.py` re-blends existing PNGs, SHIC-vs-ours page now uses 0.7.
 - Mac LaTeX: conda env `tex` (conda-forge only: tectonic, poppler, latexdiff). Compile: `~/miniconda3/envs/tex/bin/tectonic -X compile main.tex --outdir <dir>`.
   Changes PDF: `latexdiff --flatten --type=CFONT --math-markup=whole <old>/main.tex main.tex` (UNDERLINE breaks the build).
 - Itai's 11-18 list, still open: SHIC mask / their colouring, transparency in our visualisation, cross-domain examples (Slack), LoRA variants,
