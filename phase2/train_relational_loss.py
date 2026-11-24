@@ -612,6 +612,21 @@ def train(args):
                      100 * (args.geo_diag_3d - geo_diag_3d) / geo_diag_3d))
             geo_diag_3d = args.geo_diag_3d
 
+        if args.drop_pixels_mask_path:
+            # DROPPED PIXELS (Tal, 2026-11-24, horse 170401): the lifted table's "red" pixels (in the mask, no surface point on the
+            # lift; their vertex is borrowed from the nearest pixel). The SAME sampled centers and table are kept -- the dropped
+            # centers' rows are removed, and the dropped pixels leave geodesic_safe_mask, so neighbour sampling (seg_idx below)
+            # and the cycle's return leg never draw them.
+            if args.resample_centers:
+                raise ValueError('--drop_pixels_mask_path is not implemented with --resample_centers')
+            drop = torch.load(args.drop_pixels_mask_path, map_location='cpu').numpy().astype(bool)
+            keep_c = torch.from_numpy(~drop[coords[:, 0].numpy(), coords[:, 1].numpy()])
+            coords, segment_ids, geo_table_2d = coords[keep_c], segment_ids[keep_c], geo_table_2d[keep_c]
+            num_centers = coords.shape[0]
+            geodesic_safe_mask = geodesic_safe_mask & ~drop
+            print('  --drop_pixels_mask_path: %d dropped pixels, %d of %d centers dropped, %d centers left'
+                  % (int(drop.sum()), int((~keep_c).sum()), len(keep_c), num_centers))
+
         # seg_idx must never be able to hand out one of the disconnected speck pixels as a
         # neighbour -- caught by a real smoke-test failure, not anticipated: the specks turned
         # out to carry a genuine fine_segment id (16 here), not background, so
@@ -760,6 +775,9 @@ def train(args):
         keep = (slice(None) if args.cyc_return_stride <= 1 else
                 ((coords_by_node[:, 0] % args.cyc_return_stride == 0)
                  & (coords_by_node[:, 1] % args.cyc_return_stride == 0)).nonzero().squeeze(1))
+        if args.drop_pixels_mask_path:      # the return leg never lands on a dropped pixel either
+            keep = torch.arange(coords_by_node.shape[0])[keep]
+            keep = keep[torch.from_numpy(~drop[coords_by_node[keep, 0].numpy(), coords_by_node[keep, 1].numpy()])]
         kept_coords = coords_by_node[keep]
         cyc_all_pixel_features = F.normalize(
             all_pixel_features[kept_coords[:, 0], kept_coords[:, 1]].float(), dim=-1).to(device)
@@ -2133,6 +2151,10 @@ if __name__ == '__main__':
     parser.add_argument('--geodesic_domain_mask_path', type=str, default=None,
                         help='amodal mask the 2D geodesic table was built through (build_geodesic_tables.py flag of '
                              'the same name; Tal, 2026-10-07). Unset = every run before that date.')
+    parser.add_argument('--drop_pixels_mask_path', type=str, default=None,
+                        help='[H, W] bool, True = never a center, a neighbour or a cycle return pixel; the sampled centers and '
+                             'the table stay the same, only the dropped ones are removed (Tal, 2026-11-24: the lifted table\'s '
+                             'pixels with no surface point, build_lifted_geodesic_table.py <out>_miss.pth). Needs --geodesic.')
     parser.add_argument('--save_stageA_end', action='store_true',
                         help='write the end-of-stage-A save (encoder_checkpoint_stageA_end.pth, mu_aniso_stageA_end.pth) '
                              'even with --no_step_checkpoints (Tal, 2026-10-07: keep the stage-1 state, drop the 12 step dumps)')

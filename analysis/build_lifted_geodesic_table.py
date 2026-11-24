@@ -155,7 +155,7 @@ def main():
     if a.pix_map == 'triangle':
         pv, hit = raycast_pix_vertex(lift, V, F[lab[F[:, 0]] == big], H, W)
         print(f'[lifted] ray cast on the decimated largest component: missed by {int((safe & ~hit).sum())} mask pixels', flush=True)
-        pix_v[nodes] = pv[rows, cols]; cen_v = pv[coords[:, 0], coords[:, 1]]
+        pix_v[nodes] = pv[rows, cols]; cen_v = pv[coords[:, 0], coords[:, 1]]; has = hit
     else:
         tree = cKDTree(V[keep])
         _, nn = tree.query(PP[rows, cols]); pix_v[nodes] = keep[nn]                    # column n -> decimated vertex
@@ -186,6 +186,9 @@ def main():
                            'target_faces': a.target_faces, 'pix_map': {'nearest': 'raycast', 'triangle': 'raycast_triangle', 'splat': 'splat'}[a.pix_map], 'decimated_vertices': int(len(V)), 'largest_component_vertices': int(len(keep)),
                            'graph': 'edge-graph Dijkstra on the decimated lifted mesh'}})
     torch.save(out, a.out_path)
+    # the "red" pixels (Tal, 2026-11-24, horse 170401): in the mask, no surface point -> their vertex is borrowed from the nearest
+    # pixel. <out>_miss.pth [H, W] bool for train_relational_loss.py --drop_pixels_mask_path (dropped as centres and as neighbours)
+    torch.save(torch.from_numpy(safe & ~has), os.path.splitext(a.out_path)[0] + '_miss.pth')
     meta = os.path.splitext(a.out_path)[0] + '_meta.json'
     json.dump({'diagonal': float(table.max()), 'true_diameter_2d': diam, 'num_centers': int(table.shape[0]),
                'num_mask_pixels': int(table.shape[1]), 'table_path': a.out_path, 'lifted_from': os.path.abspath(a.lift_path)},
