@@ -79,7 +79,8 @@ Goal (long-term): dense correspondence between an image and a 3D object.
 - **REMIND TAL: read the method update** (changes-only PDF: latexdiff, new = blue, removed = small red). Not in the paper yet by Tal's choice: SAM 3D.
 - **Itai tasks 2+3 (same day, later):** SHIC masks, from their paper (arXiv 2407.18907): f_I(u) "undefined" off the object mask (Sec 3.1); masks
   only to sample 100 foreground training points (supp: "as not to try matching background points to the shape"); masks from Grounding DINO for
-  novel classes; no foreground head; Fig 6 caption says nothing about masks. Their repo demo PNGs are RGBA but fully opaque (not cutouts).
+  novel classes (Grounding DINO = text->BOX detector, not a segmenter; the box->mask step, likely SAM / Grounded-SAM, is not stated);
+  no foreground head; their notebook takes ONE clicked pixel, so it never needs a mask (only our dense wrapper does); Fig 6 caption says nothing about masks. Their repo demo PNGs are RGBA but fully opaque (not cutouts).
   => the model cannot tell background; their dense figures must use an external mask (our inference). Transparency: `--overlay_alpha` (default
   0.7) in color_image_from_knn.py, `analysis/reblend_backproj.py` re-blends existing PNGs, SHIC-vs-ours page now uses 0.7.
 - Mac LaTeX: conda env `tex` (conda-forge only: tectonic, poppler, latexdiff). Compile: `~/miniconda3/envs/tex/bin/tectonic -X compile main.tex --outdir <dir>`.
