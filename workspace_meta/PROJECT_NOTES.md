@@ -77,6 +77,7 @@ Goal (long-term): dense correspondence between an image and a 3D object.
   LoRA train + read alpha 1 with the L2-SP penalty lambda_W 3e-4; 149 iterations; overview figure updated; bib Pixal3D / pix2gestalt / L2-SP.
   Open `\tal{}`: global-ellipse figure, remake the loss figure with a lifted path, runtime, cycle ablation.
 - **REMIND TAL: read the method update** (changes-only PDF: latexdiff, new = blue, removed = small red). Not in the paper yet by Tal's choice: SAM 3D.
+- **For tomorrow's meeting with Itai (11-25):** private page "why SAM 3D does not work for us yet" (elephant 122873 misplaced, 60-instance silhouettes, horse 170401 lower-leg false hits): https://claude.ai/artifact/6vtDEBv6Vpa3NzdE8aygmP . Alpha rationale added to Obsidian `2026-11-17 LoRA alpha 1`.
 - **Itai tasks 2+3 (same day, later):** SHIC masks, from their paper (arXiv 2407.18907): f_I(u) "undefined" off the object mask (Sec 3.1); masks
   only to sample 100 foreground training points (supp: "as not to try matching background points to the shape"); masks from Grounding DINO for
   novel classes (Grounding DINO = text->BOX detector, not a segmenter; the box->mask step, likely SAM / Grounded-SAM, is not stated);
