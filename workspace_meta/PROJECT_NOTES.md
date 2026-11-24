@@ -69,6 +69,19 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-11-24 (MAC, fork session aff96366 = Itai's tasks) — PAPER: METHODS UPDATED, **TAL HAS NOT READ IT YET**
+- Paper repo cloned on the Mac: `~/Projects/DISC_paper` (= `itailang/DISC`, Overleaf-linked). Overleaf had no edits since 10-05 (pushed, nothing new).
+- Local commit 7d82a5e (on a11109a), **NOT PUSHED** (the push was blocked by the permission system; Tal pushes or allows it):
+  lifted target distances (pix2gestalt amodal completion + Pixal3D lift, ray-cast pixel -> surface, edge-graph geodesics) + the "2D teacher
+  fails on crowded / foreshortened parts" motivation; ONE global ellipse (per-part two-stage kept as a %-comment: fine segments unstable);
+  LoRA train + read alpha 1 with the L2-SP penalty lambda_W 3e-4; 149 iterations; overview figure updated; bib Pixal3D / pix2gestalt / L2-SP.
+  Open `\tal{}`: global-ellipse figure, remake the loss figure with a lifted path, runtime, cycle ablation.
+- **REMIND TAL: read the method update** (changes-only PDF: latexdiff, new = blue, removed = small red). Not in the paper yet by Tal's choice: SAM 3D.
+- Mac LaTeX: conda env `tex` (conda-forge only: tectonic, poppler, latexdiff). Compile: `~/miniconda3/envs/tex/bin/tectonic -X compile main.tex --outdir <dir>`.
+  Changes PDF: `latexdiff --flatten --type=CFONT --math-markup=whole <old>/main.tex main.tex` (UNDERLINE breaks the build).
+- Itai's 11-18 list, still open: SHIC mask / their colouring, transparency in our visualisation, cross-domain examples (Slack), LoRA variants,
+  explain alpha (on all 1127: train 1 / read 0.5 = 25.5 vs train + read 1 + L2 = 26.3, SHIC 26.0; Tal chose alpha 1 for the paper), no-LoRA residual + L1/L2.
+
 ## 2026-11-24 (MAC driving Run:ai `tberger3-disc-s3d`) — SAM 3D FAILURE STUDY, EXAMPLE 2 = HORSE 170401 (mid-session checkpoint, Tal asked to record it)
 - **Two Claude sessions from here (Tal, 11-24):** `376f0a1d-...` = THE SAM 3D STUDY (this thread); its fork `aff96366-cd65-4b49-a9b4-80c9b65be1e8`
   = Itai's tasks from the last meeting. Keep the topics apart; both work on branch `analysis` -> `git pull` before editing.
