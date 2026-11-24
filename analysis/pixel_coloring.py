@@ -213,7 +213,8 @@ def position_colors_grid(mask_idx_row, mask_idx_col, grid=8):
 
 
 def build_output_image(shape_hw, mask_idx_row, mask_idx_col, pixel_colors,
-                        background_color, transparent_background, background_image=None):
+                        background_color, transparent_background, background_image=None,
+                       overlay_alpha=1.0):
     """background_image (2026-09-03, Tal): [H, W, 3] uint8, the real photo -- when given, it
     replaces the flat `background_color` fill everywhere OUTSIDE the mask, so the back-projected
     colors sit on the actual scene instead of blank white. `background_color` still applies
@@ -235,6 +236,12 @@ def build_output_image(shape_hw, mask_idx_row, mask_idx_col, pixel_colors,
             img[:, :] = background_image
         else:
             img[:, :] = background_color
+        if overlay_alpha < 1.0 and background_image is not None:
+            # 2026-11-24 (Tal, Itai's task 3): see-through colours like SHIC's figures --
+            # inside the mask, colour = a * colour + (1 - a) * photo. a = 1 keeps the old opaque look.
+            photo = background_image[mask_idx_row, mask_idx_col].astype(np.float32)
+            pixel_colors = np.clip(np.round(overlay_alpha * np.asarray(pixel_colors, np.float32)
+                                            + (1.0 - overlay_alpha) * photo), 0, 255).astype(np.uint8)
         img[mask_idx_row, mask_idx_col] = pixel_colors
 
     return img
