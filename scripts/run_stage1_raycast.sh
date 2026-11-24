@@ -23,8 +23,9 @@
 # 2026-11-17 (147192: alpha 1 keeps the hind legs apart, alpha 0.5 merges them): XALPHA="1" also exports and evaluates these
 # read-time alphas (arm <arm>_a<alpha>); the back-projection stays alpha 0.5. LORA_RANK (default 4) = --lora_w_rank (give it its own OUT).
 # 2026-11-18: LORA_TALPHA (default 1) = the alpha of W + alpha * BA during training (--lora_w_train_alpha); give it its own OUT and
-# put it in XALPHA to read the run at the alpha it was trained with (0.5 is always exported).
-# 2026-11-22: BPALPHA (default 0.5) = the read-time alpha of the back-projection; the main recipe reads at 1 (BPALPHA=1 XALPHA="1").
+# put it in XALPHA to read the run at the alpha it was trained with.
+# 2026-11-24 (Tal): with XALPHA set, ONLY those alphas are exported and evaluated (0.5 was always added before; shelved).
+# 2026-11-22: BPALPHA (default: the first XALPHA, else 0.5) = the read-time alpha of the back-projection; the main recipe reads at 1 (BPALPHA=1 XALPHA="1").
 # 2026-11-24: DROPMISS=1 = the lift's mask pixels with no surface point ("red") are never a center, a neighbour or a cycle
 #   return pixel (train_relational_loss.py --drop_pixels_mask_path; same centers and table otherwise). Tal, horse 170401.
 # 2026-11-17 (6462): FLIPW=<w> adds the flip-consistency term (phase2 --flip_weight; flipped-crop features built once).
@@ -33,7 +34,9 @@ set -euo pipefail
 source "${DISC_ROOT:-/workspace/disc}/env/activate.sh"; cd $DISC_ROOT
 R=data/densepose_lvis; G=/workspace/pixal3d_out/geom_full; ARMS=${ARMS:-lifted_ray=full}
 PIXMAP=${PIXMAP:-nearest}; OUT=${OUT:-stage1_ray}
-CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; LORA_L2=${LORA_L2:-0}; BPALPHA=${BPALPHA:-0.5}; FLIPW=${FLIPW:-0}; DROPMISS=${DROPMISS:-0}
+CLASS=${CLASS:-bear}; RUNS=${RUNS:-$R/runs_full_poly}; LROOT=${LROOT:-$R/lifted_full}; LEAN=${LEAN:-0}; ZSBP=${ZSBP:-0}; KEEP=${KEEP:-0}; XALPHA=${XALPHA:-}; LORA_RANK=${LORA_RANK:-4}; LORA_TALPHA=${LORA_TALPHA:-1}; LORA_L2=${LORA_L2:-0}; BPALPHA=${BPALPHA:-${XALPHA:-0.5}}; FLIPW=${FLIPW:-0}; DROPMISS=${DROPMISS:-0}
+ALPHAS=${XALPHA:-0.5}; A0=${ALPHAS%% *}   # exported + evaluated alphas: XALPHA if set (arms <arm>_a<x>), else 0.5 alone (arm <arm>)
+arms() { local x n; for x in $ALPHAS; do n=$1; [ -z "$XALPHA" ] || n=${1}_a$x; EV+=(--arm $n=$2/alpha/alpha$x/pred_f.pth); done; }
 OBJ=./demo/shic/shapes/$CLASS.obj; NAME=shic_$CLASS; P1=./experiments/shic_$CLASS/encoder_dfd_crossview_phase1
 GEO3D=./experiments/shic_$CLASS/geodesic_tables/shic_${CLASS}_geo_table_3d.pth; GEO228=$R/eval_shic_$CLASS/${CLASS}_heat_geodesics_228.npy
 CHK=demo/shic/colored_mesh/${CLASS}_mesh_checker16_uv_color.pth
@@ -88,13 +91,13 @@ for i in ${IDS:?}; do
     [ -e $LIFT ] || { echo "lvis$i $ARM: no lift $LIFT, skipped"; continue; }
     real=$(realpath $LIFT)@$PM
     if [ -n "${RUN_OF[$real]:-}" ]; then                                # same lift as an earlier arm: reuse its run
-      EV+=(--arm $ARM=$O/${RUN_OF[$real]}/alpha/alpha0.5/pred_f.pth)
+      arms $ARM $O/${RUN_OF[$real]}
       [ -f $B/lvis${i}_${ARM}_backproj.png ] || cp $B/lvis${i}_${RUN_OF[$real]}_backproj.png $B/lvis${i}_${ARM}_backproj.png
       echo "lvis$i $ARM: same lift as ${RUN_OF[$real]}, reused"; continue
     fi
     RUN_OF[$real]=$ARM
     TL=$O/${tag}_mask_geo_table_${ARM}_seed0.pth
-    if [ ! -f $P2/alpha/alpha0.5/pred_f.pth ]; then
+    if [ ! -f $P2/alpha/alpha$A0/pred_f.pth ]; then
       FLIP=(); if [ $FLIPW != 0 ]; then                                  # flip consistency: features of the left-right flipped crop
         FF=$d/${tag}_pix_sdsquare_fuse16_flip.pth
         [ -f $FF ] || { python -c "from PIL import Image, ImageOps; ImageOps.mirror(Image.open('$d/$tag.png')).save('$d/${tag}_flip.png')"
@@ -111,12 +114,11 @@ for i in ${IDS:?}; do
           --cyc_weight 1.676e-05 --cyc_v2 --cyc_temperature 0.05 --cyc_return_all_pixels --cyc_return_stride 3 \
           --lora_w_rank $LORA_RANK --lora_w_train_alpha $LORA_TALPHA --lora_w_l2 $LORA_L2 --lora_w_layers all --lora_w_lr 1e-3 ${AMODAL[@]+"${AMODAL[@]}"} --no_step_checkpoints ${FLIP[@]+"${FLIP[@]}"} ${DROP[@]+"${DROP[@]}"} --out_dir $P2 > $P2.train.log 2>&1
       python analysis/export_pred_f_lora_alpha.py --obj_path $OBJ --name $NAME --phase1_checkpoint $P1/encoder_checkpoint.pth \
-          --lora_checkpoint $P2/encoder_checkpoint.pth --alphas 0.5 $XALPHA --out_dir $P2/alpha > /dev/null
+          --lora_checkpoint $P2/encoder_checkpoint.pth --alphas $ALPHAS --out_dir $P2/alpha > /dev/null
       rm -f $P2/encoder_checkpoint*.pth $TL ${TL%.pth}_miss.pth
     fi
-    EV+=(--arm $ARM=$P2/alpha/alpha0.5/pred_f.pth)
-    for x in $XALPHA; do EV+=(--arm ${ARM}_a$x=$P2/alpha/alpha$x/pred_f.pth); done
-    [ -f $B/lvis${i}_${ARM}_backproj.png ] || backproj $ARM $P2/alpha/alpha$BPALPHA/pred_f.pth   # BPALPHA must be 0.5 or in XALPHA
+    arms $ARM $P2
+    [ -f $B/lvis${i}_${ARM}_backproj.png ] || backproj $ARM $P2/alpha/alpha$BPALPHA/pred_f.pth   # BPALPHA must be in ALPHAS
   done
   unset RUN_OF
   python analysis/eval_lvis_ours.py --run_dir $d --tag $tag --obj_path $OBJ --name $NAME --geodesics_path $GEO228 --out_json $O/eval_all.json \
