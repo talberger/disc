@@ -69,6 +69,29 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-11-24 (MAC driving Run:ai `tberger3-disc-s3d`) — SAM 3D FAILURE STUDY, EXAMPLE 2 = HORSE 170401 (mid-session checkpoint, Tal asked to record it)
+- **Two Claude sessions from here (Tal, 11-24):** `376f0a1d-...` = THE SAM 3D STUDY (this thread); its fork `aff96366-cd65-4b49-a9b4-80c9b65be1e8`
+  = Itai's tasks from the last meeting. Keep the topics apart; both work on branch `analysis` -> `git pull` before editing.
+- **Figures, scripts, small data:** Mac `data/densepose_lvis/sam3d_failures/study170401/` (scripts/ = the server scripts + figure code; data/ = npz
+  packs). Server: `data/densepose_lvis/lifted_horse/lvis170401/stage1_side/` (KEEP=1 run: features, 2D table, tl_pix/tl_sam lifted tables, traj_* runs with
+  a checkpoint every 10 steps, pack.npz with the full tables, ply/ pair meshes). Pair PLYs also on the Mac in `sam3d_failures/horse170401_{sam,pix}_pair{1,7,8}.ply`.
+- **170401 (main recipe, alpha 1 + L2 3e-4): Pixal3D 12.9, SAM 3D def 39.4, zs 32.7, SHIC 14.5.** SAM 3D mirrors the whole horse (seen from behind):
+  image-right half -> template x+ (GT x-), legs swapped (`legfront2_170401.png`, `lvis170401_colouring_legbands.png`).
+  - NOT the red (no-hit) pixels: DROPMISS gives identical results; bug check: pred_f differ (cos 0.99986) but the snapped vertices do not.
+  - zs identical for both arms (same step-0 maps) -> the teacher. The flip is gradual, steps 30-100 (`xshare170401.png`).
+  - The relational loss is mirror-blind (symmetric template); body distances of both teachers agree. **The teachers differ only on the LOWER LEGS**
+    (`diffpaths170401.png`): adjacent pixels (1-15 px) are 0.7-0.93 of the diameter apart on the SAM 3D lift, path up one leg and down another
+    (Pixal3D has 2 such pairs on the left leg). The two ray hits of such a pair are 0.46-0.74 of the mesh extent apart in 3D -> HYPOTHESIS:
+    silhouette-edge pixels where SAM 3D's mesh does not sit on our mask; the ray misses the near part and hits a far one (front leg / neck).
+    "False hits", unlike red misses. Tal: pairs 1, 7, 8 look wrong, the rest plausible (some lower-leg pixels may really be front legs).
+  - SAM 3D sends 33-40 % of leg pixels to the template FRONT legs (Pixal3D 0-17 %).
+- **NEXT (SAM 3D):** look at pairs 1/7/8 on the lift in MeshLab; if confirmed, detect false hits by a depth jump between neighbouring pixels and drop
+  them like DROPMISS; then example 3 (bear 154547) of the top-10 list.
+- **CORRECTION (full runs, 1127 instances, soft-snap mean):** the "old recipe 27.2" reported in the morning was the NEW run read at alpha 0.5.
+  The real old full run (`stage1_tri`, train 1 / read 0.5, no L2): **25.5** vs new main recipe (train+read 1, L2 3e-4) **26.3** vs SHIC 26.0.
+  Per class old / new / SHIC: bear 33.6 / 33.9 / 33.0, horse 23.9 / 24.7 / 23.4, elephant 24.8 / 25.8 / 26.5. On the 60 used to pick L2: 27.0 vs 26.9.
+  Not yet checked that `stage1_tri` used exactly the same lifts. Tal has not decided anything from this yet.
+
 ## STATE AT CLOSE — 2026-11-17 (MAC; Run:ai unreachable: TAU VPN fails "Matching client config not found") — HAND-OFF TO A RUNPOD POD: HORSE 147192 HIND-LEG PROBE. **NOTHING IS RUNNING; gpu1x STOPPED (Tal's OK).**
 - **Why a pod:** since 11-17 the TAU VPN (GlobalProtect) fails at the gateway for user tb1 with "Matching client config not found" (portal login
   works; the client now uses SAML, which it did not in the last good connection on 11-09). Without the VPN, `runai workspace exec` times out.
