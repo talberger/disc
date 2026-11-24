@@ -71,7 +71,7 @@ Goal (long-term): dense correspondence between an image and a 3D object.
 
 ## 2026-11-24 (MAC, fork session aff96366 = Itai's tasks) — PAPER: METHODS UPDATED, **TAL HAS NOT READ IT YET**
 - Paper repo cloned on the Mac: `~/Projects/DISC_paper` (= `itailang/DISC`, Overleaf-linked). Overleaf had no edits since 10-05 (pushed, nothing new).
-- Local commit 7d82a5e (on a11109a), **NOT PUSHED** (the push was blocked by the permission system; Tal pushes or allows it):
+- Commit 7d82a5e (on a11109a), pushed by Tal to itailang/DISC main (2026-11-24); Overleaf "Pull GitHub changes" = Tal:
   lifted target distances (pix2gestalt amodal completion + Pixal3D lift, ray-cast pixel -> surface, edge-graph geodesics) + the "2D teacher
   fails on crowded / foreshortened parts" motivation; ONE global ellipse (per-part two-stage kept as a %-comment: fine segments unstable);
   LoRA train + read alpha 1 with the L2-SP penalty lambda_W 3e-4; 149 iterations; overview figure updated; bib Pixal3D / pix2gestalt / L2-SP.
