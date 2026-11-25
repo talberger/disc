@@ -71,7 +71,7 @@ Goal (long-term): dense correspondence between an image and a 3D object.
 
 ## 2026-11-25 (MAC) — MEETING WITH ITAI: NEW TASKS (Obsidian `Meetings/2026-11-25 Itai`)
 1. Is the incomplete lifted mesh really our problem? Itai: go the other way, ControlNet -> an image of the object on a natural background
-   (Tal not sure he understood; likely reading: render the complete template, ControlNet makes a realistic image, the lift = the template
+   (reading confirmed by Tal: render the complete template, ControlNet makes a realistic image, the lift = the template
    itself, so a gain there means mesh incompleteness is the bottleneck).
 2. Read on UV mapping and texturing.
 3. Per centre, send only NEAR neighbours (no far ones). Downside (Tal to write to Itai): parts no longer talk to each other.
