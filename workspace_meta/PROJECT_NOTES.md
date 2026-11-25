@@ -69,6 +69,16 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-11-25 (MAC) — MEETING WITH ITAI: NEW TASKS (Obsidian `Meetings/2026-11-25 Itai`)
+1. Is the incomplete lifted mesh really our problem? Itai: go the other way, ControlNet -> an image of the object on a natural background
+   (Tal not sure he understood; likely reading: render the complete template, ControlNet makes a realistic image, the lift = the template
+   itself, so a gain there means mesh incompleteness is the bottleneck).
+2. Read on UV mapping and texturing.
+3. Per centre, send only NEAR neighbours (no far ones). Downside (Tal to write to Itai): parts no longer talk to each other.
+4. Pick centres + neighbours on the lift, not in 2D (interesting direction).
+5. Laplacian smoothing of the lift.
+Still open from 11-18: see the entry below.
+
 ## 2026-11-24 (MAC, fork session aff96366 = Itai's tasks) — PAPER: METHODS UPDATED, **TAL HAS NOT READ IT YET**
 - Paper repo cloned on the Mac: `~/Projects/DISC_paper` (= `itailang/DISC`, Overleaf-linked). Overleaf had no edits since 10-05 (pushed, nothing new).
 - Commit 7d82a5e (on a11109a), pushed by Tal to itailang/DISC main (2026-11-24); Overleaf "Pull GitHub changes" = Tal:
