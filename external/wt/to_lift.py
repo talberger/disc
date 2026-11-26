@@ -9,6 +9,8 @@ build_lifted_geodesic_table.py / scripts/run_stage1_raycast.sh use it unchanged.
    u = a X/Z + b, v = c Y/Z + d.
 3. Into lift.py's frame as external/sam3d/to_lift.py does: G = (sgn(a) X, -sgn(c) Y, -Z), f = (|a| + |c|) / 2, crop_box from (b, d).
 4. pix_vertex / pix_depth by ray casting, iou / coverage vs our mask, a check png.
+--mesh <wt_trellis npz>: use the TRELLIS.2 mesh from /workspace/newm/wt_trellis.py (WT's own bridge, already back in WT's camera frame)
+instead of step 1; the intrinsics still come from --raw (the same WT run the mesh was built from). Source 'wt_trellis'.
 """
 import argparse, math, os, sys
 import numpy as np, torch, trimesh
@@ -48,11 +50,16 @@ def fit_intrinsics(x0, ok, crop, side_px):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--raw', required=True); ap.add_argument('--mask', required=True); ap.add_argument('--out', required=True)
     ap.add_argument('--seed', default='42'); ap.add_argument('--res', type=int, default=192); ap.add_argument('--check_png', default=None)
+    ap.add_argument('--mesh', default=None)
     a = ap.parse_args()
     r = np.load(a.raw); mask = torch.load(a.mask).numpy().astype(bool); H, W = mask.shape
     assert tuple(r['hw']) == (H, W), (r['hw'], mask.shape)
     xyz = r[f'xyz_{a.seed}'].astype(np.float64); lm = r[f'mask_{a.seed}'].astype(bool)
-    V, F, vox = layers_to_mesh(xyz, lm, res=a.res)
+    if a.mesh:
+        z = np.load(a.mesh); tm = trimesh.Trimesh(z['vertices'].astype(np.float64), z['faces'], process=True)   # process merges duplicate vertices
+        V, F, vox = np.asarray(tm.vertices), np.asarray(tm.faces, np.int64), float('nan')
+    else:
+        V, F, vox = layers_to_mesh(xyz, lm, res=a.res)
     fa, fb, fc, fd, res = fit_intrinsics(xyz[0], lm[0] & np.isfinite(xyz[0]).all(-1), r['crop'], xyz.shape[1])
     f = (abs(fa) + abs(fc)) / 2; S = float(max(H, W)); fov = 2 * math.atan(S / (2 * f))
     cam = {'camera_angle_x': fov, 'distance': DIST, 'mesh_scale': 1.0}; box = (fb - S / 2, fd - S / 2, S)
@@ -66,7 +73,7 @@ def main():
     pv = -np.ones(H * W, np.int64); pv[ok] = tri[np.arange(len(tri)), k]; zb = np.full(H * W, np.inf); zb[ok] = (th * zc)[ok]
     out = {'vertices': torch.from_numpy(Vw.astype(np.float32)), 'faces': torch.from_numpy(F), 'pix_vertex': torch.from_numpy(pv.reshape(H, W)),
            'pix_depth': torch.from_numpy(zb.reshape(H, W).astype(np.float32)), 'camera': cam, 'crop_box': tuple(float(x) for x in box),
-           'iou': iou, 'coverage': coverage, 'source': 'wt', 'raw': os.path.abspath(a.raw), 'seed': a.seed,
+           'iou': iou, 'coverage': coverage, 'source': 'wt_trellis' if a.mesh else 'wt', 'raw': os.path.abspath(a.raw), 'mesh': a.mesh and os.path.abspath(a.mesh), 'seed': a.seed,
            'intrinsics_fit': dict(a=fa, b=fb, c=fc, d=fd, residual_px=res)}
     torch.save(out, a.out)
     print(f'{os.path.basename(a.out)}: silhouette IoU {iou:.3f}, mask pixels with a surface point {coverage:.3f}, '
