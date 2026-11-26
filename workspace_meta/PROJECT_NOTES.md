@@ -69,6 +69,32 @@ Result: **405 KB -> 132 KB (-67%)**. What changed, and the rule used:
 Advisor: Itai Lang. Baseline: BSB (`threedle/bsb`), which we are extending.
 Goal (long-term): dense correspondence between an image and a 3D object.
 
+## 2026-11-26 (MAC) — GENIA + WORLD TRACING ON THE 10 WORST SAM 3D INSTANCES (session 376f0a1d)
+Why: SAM 3D gives a complete mesh but its pose/camera is off (horse 170401 pairs 1/7/8: near leg thinner + shifted, rays pass it and hit
+the far leg; SAM 3D depth A vs B 1.66/2.21, 1.71/2.19, 1.78/2.55, Pixal3D same depth). Tal is considering dropping SAM 3D. Candidates
+that cite Pixal3D: GenIA (2610.12388, frozen SAM 3D + test-time pose/LoRA alignment, MapAnything depth) and World Tracing
+(2606.13652, 6 camera-space XYZ layers per pixel, r75b object model; mesh via a TRELLIS.2 bridge). No amodal for now; add ours later if needed.
+- 10 instances: elephant 122873, horse 170401, bear 154547, horse 96637, bear 167241, bear 181519, bear 66948, horse 45503, bear 141393,
+  elephant 111580 (`/workspace/newm/jobs10.tsv`, RGBA cutouts `/workspace/newm/in/`, GenIA scenes `/workspace/newm/genia_data/image/<cls>_<id>/`).
+- s3d envs (micromamba `/workspace/bin/micromamba`, root `/workspace/mamba`): `/workspace/envs/wt` (World Tracing, repo `/workspace/wt_repo`),
+  `/workspace/envs/genia` + CUDA 12.8 toolkit `/workspace/envs/cuda128` (repo `/workspace/genia_repo`, branch release). Install scripts
+  `/workspace/newm/{wt_install,genia_install}.sh`. GenIA uses `GENIA_SAM3D_WEIGHTS=/workspace/sam3d_repo/checkpoints/hf` (no HF token).
+- WT weights `haoz19/object-model-6layer` are gated: Tal got access, downloaded once to `/workspace/.cache/huggingface` with a temporary
+  token (not stored on disk). REMIND TAL: delete that HF token (Settings → Access Tokens), it was pasted in chat.
+- DONE: WT on all 10 → `/workspace/newm/wt_out/lvis<id>.npz` (crop (y1,x1,side), xyz_42 [6,504,504,3] f16, mask_42, K_42); copied to Mac
+  `data/densepose_lvis/sam3d_failures/newmethods/wt_out/`. Runner `/workspace/newm/wt_run.py`.
+- DONE: GenIA horse 170401 (~10 min/scene) → `/workspace/genia_repo/results/mono_static/image/horse_170401/<ts>/final/`
+  (meshes/001.glb, poses.json, renders); Mac copy `newmethods/genia_h170401/`. Overlay looks good (photometric Gaussians, not proof of geometry).
+- RUNNING (started 07:24 11-26): GenIA on the other 9 scenes, `bash /workspace/newm/genia_run.sh` (SCENES env), log `/workspace/logs/genia_run9.log`,
+  ends with "GENIA RUN DONE". If s3d got preempted, resume it and rerun only the scenes missing under results/.
+- Gotchas: `runai workspace exec ... < file` does NOT pass stdin (files arrive empty) → upload via `echo <base64> | base64 -d`.
+  s3d is preemptible and stops often; resume via CLI sometimes does not take, UI Start works. conda cuda-toolkit needs `-c conda-forge`
+  and CPATH=$CUDA_HOME/targets/x86_64-linux/include.
+- NEXT: (1) WT mesh via TRELLIS.2 bridge (aggregate_camera_cloud → compute_canonical_transform → v4_ray_fill → inject_coords_into_trellis2),
+  invert the canonical transform back to camera frame, check against layer 0. (2) GenIA mesh into camera frame via poses.json. (3) Lifts by
+  ray cast to our crop pixels (map WT crop back via y1,x1,side) → silhouette hit/outside counts + stage1 vs Pixal3D, SAM 3D, SHIC.
+  (4) Check horse 170401 pairs 1/7/8 on both. Then Itai tasks (entry below).
+
 ## 2026-11-25 (MAC) — MEETING WITH ITAI: NEW TASKS (Obsidian `Meetings/2026-11-25 Itai`)
 1. Is the incomplete lifted mesh really our problem? Itai: go the other way, ControlNet -> an image of the object on a natural background
    (reading confirmed by Tal: render the complete template, ControlNet makes a realistic image, the lift = the template
